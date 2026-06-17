@@ -1,0 +1,17 @@
+{
+  "name": "sistema_envio_msg",
+  "version": "1.0.0",
+  "description": "Este sistema permite automatizar o envio de mensagens pelo WhatsApp utilizando a API do SM Click, com foco em segmentação por etiquetas e agendamento de disparos.",
+  "main": "backend/index.js",
+  "scripts": {
+    "dev": "npm run dev --prefix backend",
+    "start": "npm start --prefix backend",
+    "build": "npm run build --prefix backend",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
