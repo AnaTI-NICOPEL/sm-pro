@@ -42,6 +42,7 @@ function App() {
   const [newLeadForm, setNewLeadForm] = useState({ phone: '', name: '', firstMessage: '' });
   const [inspectPayload, setInspectPayload] = useState(null);
   const [clockNow, setClockNow] = useState(Date.now());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchLeads = async () => {
     try {
@@ -59,6 +60,12 @@ function App() {
     } catch (error) {
       console.error('Error fetching webhook logs:', error);
     }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([fetchLeads(), fetchWebhookLogs()]);
+    setTimeout(() => setIsRefreshing(false), 500); // Visual feedback duration
   };
 
   const handleCreateManualLead = async (e) => {
@@ -1309,10 +1316,11 @@ function App() {
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               className="btn btn-secondary"
-              onClick={() => { fetchLeads(); fetchWebhookLogs(); }}
+              onClick={handleRefresh}
+              disabled={isRefreshing}
               style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem' }}
             >
-              <RefreshCw size={16} /> Atualizar
+              <RefreshCw size={16} className={isRefreshing ? 'spin' : ''} /> {isRefreshing ? 'Atualizando...' : 'Atualizar'}
             </button>
             <button
               className="btn btn-primary"
