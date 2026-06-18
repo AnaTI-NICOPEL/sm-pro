@@ -68,6 +68,57 @@ function App() {
     setTimeout(() => setIsRefreshing(false), 500); // Visual feedback duration
   };
 
+  const handleExportCSV = () => {
+    if (leads.length === 0) {
+      alert('Não há dados para exportar.');
+      return;
+    }
+
+    const headers = [
+      'Cliente',
+      'Telefone',
+      'Data de Criação (Chegada)',
+      'Primeira Mensagem do Cliente',
+      'Data da Resposta (Maria)',
+      'Primeira Mensagem da Maria',
+      'Tempo de Resposta (Segundos)',
+      'Tempo Formatado',
+      'Status'
+    ];
+
+    const rows = leads.map(lead => {
+      const measured = Boolean(lead.answered_at && lead.response_time !== null);
+      let formattedTime = '-';
+      if (measured) {
+        formattedTime = formatResponseTime(Number(lead.response_time));
+      } else {
+        const elapsed = Math.max(0, Math.round((clockNow - new Date(lead.created_at).getTime()) / 1000));
+        formattedTime = `Em andamento (${formatResponseTime(elapsed)})`;
+      }
+
+      return [
+        `"${(lead.customer_name || '').replace(/"/g, '""')}"`,
+        `"${(lead.customer_phone || '').replace(/"/g, '""')}"`,
+        `"${format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm:ss')}"`,
+        `"${(lead.first_message || '').replace(/"/g, '""')}"`,
+        `"${lead.answered_at ? format(new Date(lead.answered_at), 'dd/MM/yyyy HH:mm:ss') : '-'}"`,
+        `"${(lead.maria_message || '').replace(/"/g, '""')}"`,
+        `"${lead.response_time !== null ? lead.response_time : '-'}"`,
+        `"${formattedTime}"`,
+        `"${measured ? 'Tempo calculado' : 'Aguardando MARIA'}"`
+      ].join(',');
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `relatorio_medicoes_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleCreateManualLead = async (e) => {
     e.preventDefault();
     try {
@@ -1321,6 +1372,13 @@ function App() {
               style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem' }}
             >
               <RefreshCw size={16} className={isRefreshing ? 'spin' : ''} /> {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={handleExportCSV}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem', backgroundColor: 'var(--success)', color: 'white', border: 'none' }}
+            >
+              <Download size={16} /> Exportar CSV
             </button>
             <button
               className="btn btn-primary"
