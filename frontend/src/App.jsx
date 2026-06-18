@@ -68,7 +68,7 @@ function App() {
     setTimeout(() => setIsRefreshing(false), 500); // Visual feedback duration
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (leads.length === 0) {
       alert('Não há dados para exportar.');
       return;
@@ -97,26 +97,37 @@ function App() {
       }
 
       return [
-        `"${(lead.customer_name || '').replace(/"/g, '""')}"`,
-        `"${(lead.customer_phone || '').replace(/"/g, '""')}"`,
-        `"${format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm:ss')}"`,
-        `"${(lead.first_message || '').replace(/"/g, '""')}"`,
-        `"${lead.answered_at ? format(new Date(lead.answered_at), 'dd/MM/yyyy HH:mm:ss') : '-'}"`,
-        `"${(lead.maria_message || '').replace(/"/g, '""')}"`,
-        `"${lead.response_time !== null ? lead.response_time : '-'}"`,
-        `"${formattedTime}"`,
-        `"${measured ? 'Tempo calculado' : 'Aguardando MARIA'}"`
-      ].join(',');
+        lead.customer_name || '',
+        lead.customer_phone || '',
+        format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm:ss'),
+        lead.first_message || '',
+        lead.answered_at ? format(new Date(lead.answered_at), 'dd/MM/yyyy HH:mm:ss') : '-',
+        lead.maria_message || '',
+        lead.response_time !== null ? Number(lead.response_time) : '-',
+        formattedTime,
+        measured ? 'Tempo calculado' : 'Aguardando MARIA'
+      ];
     });
 
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `relatorio_medicoes_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const worksheetData = [headers, ...rows];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Medições");
+
+    // Ajuste simples de largura das colunas
+    worksheet['!cols'] = [
+      { wch: 25 }, // Cliente
+      { wch: 15 }, // Telefone
+      { wch: 22 }, // Data Criacao
+      { wch: 40 }, // Msg Cliente
+      { wch: 22 }, // Data Resposta
+      { wch: 40 }, // Msg Maria
+      { wch: 15 }, // Segundos
+      { wch: 20 }, // Formatado
+      { wch: 20 }, // Status
+    ];
+
+    XLSX.writeFile(workbook, `relatorio_medicoes_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.xlsx`);
   };
 
   const handleCreateManualLead = async (e) => {
@@ -1375,10 +1386,10 @@ function App() {
             </button>
             <button
               className="btn btn-secondary"
-              onClick={handleExportCSV}
+              onClick={handleExportExcel}
               style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem', backgroundColor: 'var(--success)', color: 'white', border: 'none' }}
             >
-              <Download size={16} /> Exportar CSV
+              <Download size={16} /> Exportar Excel
             </button>
             <button
               className="btn btn-primary"
