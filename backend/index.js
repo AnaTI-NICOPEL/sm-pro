@@ -1003,14 +1003,23 @@ function isIncomingMessage(payload) {
 }
 
 function isAttendantTarget(attendantName) {
+    if (!attendantName) return false;
+
+    // Estratégia 1: comparação direta case-insensitive (mais simples, mais confiável)
+    const actualLower  = String(attendantName).trim().toLowerCase();
+    const targetLower  = String(TARGET_ATTENDANT_NAME).trim().toLowerCase();
+    if (actualLower && targetLower && actualLower === targetLower) return true;
+
+    // Estratégia 2: via normalização Unicode (remove acentos)
     const actual = normalizeComparable(attendantName);
     const target = normalizeComparable(TARGET_ATTENDANT_NAME);
     if (!actual || !target) return false;
     if (actual === target) return true;
 
-    // Permite nomes completos como "MARIA SILVA", sem aceitar nomes parecidos como "MARIANA".
+    // Estratégia 3: nome composto - "MARIA SILVA" contém "MARIA" como palavra isolada.
     if (!target.includes(' ')) {
-        return actual.split(/\s+/).includes(target);
+        if (actual.split(/\s+/).includes(target)) return true;
+        if (actualLower.split(/\s+/).includes(targetLower)) return true;
     }
     return actual.includes(target);
 }
@@ -1111,7 +1120,11 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
         fromMe,
         sentByName,
         chatId,
-        phone
+        phone,
+        TARGET_ATTENDANT_NAME,
+        sentByNameLower: sentByName ? sentByName.trim().toLowerCase() : null,
+        targetLower: TARGET_ATTENDANT_NAME ? TARGET_ATTENDANT_NAME.trim().toLowerCase() : null,
+        directMatch: sentByName ? sentByName.trim().toLowerCase() === TARGET_ATTENDANT_NAME.trim().toLowerCase() : false
     }));
 
     let processingResult = 'ignored';
