@@ -20,6 +20,19 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
 });
 
+// Endpoint de diagnóstico: exibe os valores exatos das variáveis de ambiente relevantes.
+app.get('/api/debug', (req, res) => {
+    res.json({
+        TARGET_ATTENDANT_NAME,
+        TARGET_ATTENDANT_EMAIL,
+        TARGET_ATTENDANT_NAME_chars: [...TARGET_ATTENDANT_NAME].map(c => c.charCodeAt(0)),
+        LEAD_SESSION_WINDOW_HOURS,
+        env_LEAD_MONITOR_ATTENDANT: process.env.LEAD_MONITOR_ATTENDANT,
+        env_LEAD_MONITOR_EMAIL: process.env.LEAD_MONITOR_EMAIL,
+        node_version: process.version
+    });
+});
+
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 let db;
 
@@ -625,8 +638,15 @@ app.post('/api/retomar/:id', async (req, res) => {
 // Webhook & Lead Monitoring API
 // ==========================================
 
-const TARGET_ATTENDANT_NAME = process.env.LEAD_MONITOR_ATTENDANT || 'MARIA';
+// Remove caracteres de controle/invisíveis que podem vir do env var (ex: \r do CRLF no .env)
+const TARGET_ATTENDANT_NAME = (process.env.LEAD_MONITOR_ATTENDANT || 'MARIA')
+    .replace(/[^\x20-\x7E\u00C0-\u024F]/g, '')  // mantém apenas ASCII imprimível + acentos latinos
+    .trim();
+const TARGET_ATTENDANT_EMAIL = (process.env.LEAD_MONITOR_EMAIL || '').trim().toLowerCase();
 const LEAD_SESSION_WINDOW_HOURS = Math.max(1, Number(process.env.LEAD_SESSION_WINDOW_HOURS) || 24);
+
+console.log('[Config] TARGET_ATTENDANT_NAME:', JSON.stringify(TARGET_ATTENDANT_NAME));
+console.log('[Config] TARGET_ATTENDANT_NAME chars:', [...TARGET_ATTENDANT_NAME].map(c => c.charCodeAt(0)));
 
 function normalizeComparable(value) {
     return String(value || '')
@@ -1002,10 +1022,17 @@ function isIncomingMessage(payload) {
         event.includes('INCOMING');
 }
 
-function isAttendantTarget(attendantName) {
+function isAttendantTarget(attendantName, attendantEmail) {
+    if (!attendantName && !attendantEmail) return false;
+
+    // Estratégia 0: verificar pelo e-mail (mais confiável, sem ambiguidade de encoding)
+    if (attendantEmail && TARGET_ATTENDANT_EMAIL) {
+        if (String(attendantEmail).trim().toLowerCase() === TARGET_ATTENDANT_EMAIL) return true;
+    }
+
     if (!attendantName) return false;
 
-    // Estratégia 1: comparação direta case-insensitive (mais simples, mais confiável)
+    // Estratégia 1: comparação direta case-insensitive
     const actualLower  = String(attendantName).trim().toLowerCase();
     const targetLower  = String(TARGET_ATTENDANT_NAME).trim().toLowerCase();
     if (actualLower && targetLower && actualLower === targetLower) return true;
@@ -1108,6 +1135,10 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
     // pela empresa (true) ou pelo cliente (false).
     const fromMe       = smClickIsFromMe(payload);
     const sentByName   = smClickSentByName(payload);   // atendente (apenas em mensagens de saída)
+    const sentByEmail  = firstDefined(
+        payload.infos?.message?.sent_by?.email,
+        payload.infos?.chat?.last_message?.sent_by?.email
+    ) || null;
     const chatId       = smClickChatId(payload);        // identificador único da conversa
     const phone        = smClickPhone(payload);
     const customerName = smClickCustomerName(payload);
@@ -1119,12 +1150,15 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
         isNewChatMessage,
         fromMe,
         sentByName,
+        sentByEmail,
         chatId,
         phone,
         TARGET_ATTENDANT_NAME,
+        TARGET_ATTENDANT_EMAIL,
         sentByNameLower: sentByName ? sentByName.trim().toLowerCase() : null,
         targetLower: TARGET_ATTENDANT_NAME ? TARGET_ATTENDANT_NAME.trim().toLowerCase() : null,
-        directMatch: sentByName ? sentByName.trim().toLowerCase() === TARGET_ATTENDANT_NAME.trim().toLowerCase() : false
+        directMatch: sentByName ? sentByName.trim().toLowerCase() === TARGET_ATTENDANT_NAME.trim().toLowerCase() : false,
+        emailMatch: sentByEmail && TARGET_ATTENDANT_EMAIL ? sentByEmail.trim().toLowerCase() === TARGET_ATTENDANT_EMAIL : false
     }));
 
     let processingResult = 'ignored';
@@ -1175,8 +1209,8 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                 return res.status(200).json({ success: true, action: processingResult });
             }
 
-            // Verifica se o atendente é a MARIA.
-            if (!isAttendantTarget(sentByName)) {
+            // Verifica se o atendente é a MARIA (por nome OU email).
+            if (!isAttendantTarget(sentByName, sentByEmail)) {
                 processingResult = sentByName
                     ? `ignored_other_attendant:${sentByName}`
                     : 'ignored_attendant_not_identified';
