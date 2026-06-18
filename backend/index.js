@@ -1170,20 +1170,19 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
     try {
         // ── 1. new-chat: registra início da medição ───────────────────────────
         if (isNewChat) {
+            // Ignora conversas que já nascem com um departamento associado (department !== null)
+            const department = body.infos?.chat?.department;
+            if (department !== null && department !== undefined) {
+                processingResult = 'ignored_has_department';
+                await saveWebhookLog({ eventType: body.event, payload: body, result: processingResult, phone: clientPhone, attendantName: null });
+                return res.status(200).json({ success: true, action: processingResult });
+            }
+
             if (!chatId && !clientPhone) {
                 processingResult = 'ignored_no_chat_id_or_phone';
                 await saveWebhookLog({ eventType: body.event, payload: body, result: processingResult, phone: clientPhone, attendantName: null });
                 return res.status(200).json({ success: true, action: processingResult });
             }
-
-            // Só monitora chats SEM departamento (department === null)
-            const department = body.infos?.chat?.department ?? null;
-            if (department !== null) {
-                processingResult = 'ignored_has_department';
-                await saveWebhookLog({ eventType: body.event, payload: body, result: processingResult, phone: clientPhone, attendantName: null });
-                return res.status(200).json({ success: true, action: processingResult, department });
-            }
-
 
             // Evita duplicata: já existe medição aberta com este chat.id?
             if (chatId) {
