@@ -1123,11 +1123,11 @@ async function findWaitingMeasurement({ phone, conversationId }) {
 //   2. new-chat-message  → verifica se mesmo chat.id + se enviado pela MARIA → calcula tempo
 // =============================================================================
 
-// Nome/email da atendente monitorada (definidos no Render ou .env)
-const MARIA_NAME_TARGET  = String(process.env.LEAD_MONITOR_ATTENDANT || 'MARIA').replace(/[^\x20-\x7E\u00C0-\u024F]/g, '').trim();
-const MARIA_EMAIL_TARGET = String(process.env.LEAD_MONITOR_EMAIL || '').trim().toLowerCase();
+// ID único da atendente monitorada (UUID, sem problemas de encoding ou capitalização)
+const MARIA_ATTENDANT_ID = String(process.env.LEAD_MONITOR_ATTENDANT_ID || '').trim();
+const MARIA_NAME_TARGET  = String(process.env.LEAD_MONITOR_ATTENDANT || 'MARIA').trim(); // apenas para exibição
 
-console.log('[Config] Atendente monitorada => nome:', JSON.stringify(MARIA_NAME_TARGET), '| email:', JSON.stringify(MARIA_EMAIL_TARGET));
+console.log('[Config] Atendente monitorada => id:', JSON.stringify(MARIA_ATTENDANT_ID), '| nome:', JSON.stringify(MARIA_NAME_TARGET));
 
 app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
     const body = req.body || {};
@@ -1145,8 +1145,8 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
 
     // Dados do remetente (presente em new-chat-message)
     const fromMe      = body.infos?.message?.from_me === true;
+    const sentById    = body.infos?.message?.sent_by?.id    || body.infos?.chat?.last_message?.sent_by?.id    || null;
     const sentByName  = body.infos?.message?.sent_by?.name  || body.infos?.chat?.last_message?.sent_by?.name  || null;
-    const sentByEmail = body.infos?.message?.sent_by?.email || body.infos?.chat?.last_message?.sent_by?.email || null;
     const msgSentAt   = body.infos?.message?.sent_at || body.event_time || new Date().toISOString();
     const msgText     = body.infos?.message?.content?.original_text || body.infos?.message?.content?.text || null;
 
@@ -1155,19 +1155,15 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
         ? (body.infos?.chat?.last_message?.content?.text || body.infos?.chat?.last_message?.content?.original_text || 'Novo chat')
         : 'Novo chat iniciado';
 
-    // ── Verificação DIRETA se é a atendente monitorada ────────────────────────
-    const nameLC   = String(sentByName  || '').trim().toLowerCase();
-    const emailLC  = String(sentByEmail || '').trim().toLowerCase();
-    const targetLC = MARIA_NAME_TARGET.toLowerCase();
-    const matchByEmail = MARIA_EMAIL_TARGET.length > 0 && emailLC === MARIA_EMAIL_TARGET;
-    const matchByName  = targetLC.length > 0 && (nameLC === targetLC || nameLC.split(/\s+/).includes(targetLC));
-    const isMaria      = matchByEmail || matchByName;
+    // ── Identifica se é a atendente monitorada pelo ID (UUID — sem ambiguidade) ─
+    const isMaria = MARIA_ATTENDANT_ID.length > 0 && sentById === MARIA_ATTENDANT_ID;
 
     console.log('[Webhook]', JSON.stringify({
         event: rawEvent, chatId, clientPhone, fromMe,
-        sentByName, sentByEmail, isMaria,
-        nameLC, targetLC, matchByName, matchByEmail
+        sentById, sentByName, isMaria,
+        MARIA_ATTENDANT_ID
     }));
+
 
     let processingResult = 'ignored';
 
