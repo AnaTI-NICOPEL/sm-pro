@@ -861,6 +861,83 @@ function extractAttendantName(payload) {
     return attendant ? String(attendant).trim() : null;
 }
 
+// ==========================================
+// SM Click specific extractors
+// Reads the nested "infos" structure used by the SM Click platform.
+// ==========================================
+
+function smClickChatId(payload) {
+    return firstDefined(
+        payload.infos?.chat?.id,
+        payload.chat?.id
+    ) || null;
+}
+
+function smClickPhone(payload) {
+    const raw = firstDefined(
+        payload.infos?.chat?.contact?.telephone,
+        payload.infos?.chat?.contact?.phone,
+        payload.chat?.contact?.telephone,
+        payload.chat?.contact?.phone
+    );
+    return cleanPhone(raw);
+}
+
+function smClickCustomerName(payload) {
+    return firstDefined(
+        payload.infos?.chat?.contact?.name,
+        payload.chat?.contact?.name
+    ) || 'Cliente WhatsApp';
+}
+
+// Returns the attendant who sent the message (only present in new-chat-message).
+function smClickSentByName(payload) {
+    const name = firstDefined(
+        payload.infos?.message?.sent_by?.name,
+        payload.infos?.chat?.last_message?.sent_by?.name
+    );
+    return name ? String(name).trim() : null;
+}
+
+// Returns true when the message was sent by the company (not by the client).
+function smClickIsFromMe(payload) {
+    return firstDefined(
+        payload.infos?.message?.from_me,
+        payload.infos?.chat?.last_message?.from_me
+    ) === true;
+}
+
+function smClickMessageText(payload) {
+    return firstDefined(
+        payload.infos?.message?.content?.original_text,
+        payload.infos?.message?.content?.text,
+        payload.infos?.chat?.last_message?.content?.original_text,
+        payload.infos?.chat?.last_message?.content?.text
+    ) || null;
+}
+
+function smClickFirstClientMessage(payload) {
+    // For new-chat the last_message IS the first client message (from_me === false).
+    const lm = payload.infos?.chat?.last_message;
+    if (lm && lm.from_me === false) {
+        return firstDefined(
+            lm.content?.original_text,
+            lm.content?.text
+        ) || 'Novo chat iniciado (new-chat)';
+    }
+    return 'Novo chat iniciado (new-chat)';
+}
+
+function smClickEventDate(payload) {
+    const raw = firstDefined(
+        payload.event_time,
+        payload.infos?.chat?.created_at,
+        payload.infos?.message?.created_at,
+        payload.infos?.message?.sent_at
+    );
+    return parseWebhookDate(raw) || new Date();
+}
+
 function booleanLike(value) {
     if (value === true || value === false) return value;
     const normalized = normalizeComparable(value);
@@ -1003,47 +1080,94 @@ async function findWaitingMeasurement({ phone, conversationId }) {
     return byPhone.rows[0] || null;
 }
 
-// Recebe tanto o new-chat quanto eventos de mensagens enviados pelo SM Click.
-// Nenhuma conversa é encerrada ou alterada: a rota apenas registra horários e calcula o intervalo.
+// Recebe os eventos new-chat e new-chat-message enviados pelo SM Click.
+// Fluxo:
+//   1. new-chat          → registra o chat.id e os dados do cliente como medição em espera.
+//   2. new-chat-message  → verifica se o remetente é MARIA pelo chat.id e calcula o tempo.
+// Nenhuma conversa é encerrada ou alterada pelo sistema.
 app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
     const payload = req.body || {};
-    const eventType = extractEventType(payload);
-    const outgoing = isOutgoingMessage(payload);
-    const phone = extractPhone(payload, outgoing);
-    const messageContent = extractMessageContent(payload);
-    const conversationId = extractConversationId(payload);
-    const eventId = extractEventId(payload);
-    const eventDate = extractEventDate(payload);
-    const newChat = isNewChatEvent(payload);
-    const incoming = newChat || isIncomingMessage(payload);
-    const attendantName = outgoing ? extractAttendantName(payload) : null;
+
+    // ── Extração de campos usando a estrutura "infos" do SM Click ──────────────
+    const eventType = String(payload.event || extractEventType(payload));
+    const eventNorm = normalizeComparable(eventType).replace(/[\s_-]+/g, '');
+
+    const isNewChat        = eventNorm === 'NEWCHAT';
+    const isNewChatMessage = eventNorm === 'NEWCHATMESSAGE';
+
+    // Para new-chat-message o campo "from_me" indica se a mensagem foi enviada
+    // pela empresa (true) ou pelo cliente (false).
+    const fromMe       = smClickIsFromMe(payload);
+    const sentByName   = smClickSentByName(payload);   // atendente (apenas em mensagens de saída)
+    const chatId       = smClickChatId(payload);        // identificador único da conversa
+    const phone        = smClickPhone(payload);
+    const customerName = smClickCustomerName(payload);
+    const eventDate    = smClickEventDate(payload);
 
     console.log('[Webhook] Received:', JSON.stringify({
         eventType,
-        phone,
-        conversationId,
-        eventId,
-        outgoing,
-        newChat,
-        incoming,
-        attendantName
+        isNewChat,
+        isNewChatMessage,
+        fromMe,
+        sentByName,
+        chatId,
+        phone
     }));
 
     let processingResult = 'ignored';
 
     try {
-        if (!phone) {
-            processingResult = 'ignored_no_phone';
-            await saveWebhookLog({ eventType, payload, result: processingResult, phone: null, attendantName });
-            return res.status(200).json({ success: true, action: processingResult });
+        // ── 1. Evento new-chat: abre uma nova medição ──────────────────────────
+        if (isNewChat) {
+            if (!phone && !chatId) {
+                processingResult = 'ignored_no_phone_or_chat_id';
+                await saveWebhookLog({ eventType, payload, result: processingResult, phone: null, attendantName: null });
+                return res.status(200).json({ success: true, action: processingResult });
+            }
+
+            // Evita duplicidade: se já existe uma medição aguardando para este chat, ignora.
+            if (chatId) {
+                const existing = await pgPool.query(
+                    `SELECT id FROM leads_monitoring WHERE conversation_id = $1 AND answered_at IS NULL LIMIT 1`,
+                    [chatId]
+                );
+                if (existing.rows.length) {
+                    processingResult = 'ignored_duplicate_or_existing_chat';
+                    await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: null });
+                    return res.status(200).json({ success: true, action: processingResult, leadId: existing.rows[0].id });
+                }
+            }
+
+            const firstMessage = smClickFirstClientMessage(payload);
+
+            const inserted = await pgPool.query(
+                `INSERT INTO leads_monitoring
+                 (customer_phone, customer_name, status, created_at, first_message, conversation_id, updated_at)
+                 VALUES ($1, $2, 'waiting_maria', $3, $4, $5, CURRENT_TIMESTAMP)
+                 RETURNING *`,
+                [phone || 'unknown', customerName, eventDate, firstMessage, chatId]
+            );
+
+            processingResult = 'new_chat_registered';
+            await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: null });
+            return res.status(200).json({ success: true, action: processingResult, lead: inserted.rows[0] });
         }
 
-        if (outgoing) {
-            if (!isAttendantTarget(attendantName)) {
-                processingResult = attendantName
-                    ? 'ignored_other_attendant'
+        // ── 2. Evento new-chat-message: verifica se é a primeira mensagem da MARIA ──
+        if (isNewChatMessage) {
+            // Só processa mensagens enviadas pela empresa (from_me = true).
+            if (!fromMe) {
+                processingResult = 'ignored_client_message';
+                await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: null });
+                return res.status(200).json({ success: true, action: processingResult });
+            }
+
+            // Verifica se o atendente é a MARIA.
+            if (!isAttendantTarget(sentByName)) {
+                processingResult = sentByName
+                    ? `ignored_other_attendant:${sentByName}`
                     : 'ignored_attendant_not_identified';
-                await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName });
+                await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: sentByName });
                 return res.status(200).json({
                     success: true,
                     action: processingResult,
@@ -1051,43 +1175,54 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                 });
             }
 
-            const lead = await findWaitingMeasurement({ phone, conversationId });
+            // Busca a medição em espera pelo chat.id.
+            let lead = null;
+            if (chatId) {
+                const byChat = await pgPool.query(
+                    `SELECT * FROM leads_monitoring WHERE conversation_id = $1 AND answered_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+                    [chatId]
+                );
+                lead = byChat.rows[0] || null;
+            }
+
+            // Fallback: busca pelo telefone se o chat.id não encontrou nada.
+            if (!lead && phone) {
+                const byPhone = await pgPool.query(
+                    `SELECT * FROM leads_monitoring WHERE customer_phone = $1 AND answered_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+                    [phone]
+                );
+                lead = byPhone.rows[0] || null;
+            }
+
             if (!lead) {
                 processingResult = 'ignored_no_waiting_measurement';
-                await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName });
+                await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: sentByName });
                 return res.status(200).json({ success: true, action: processingResult });
             }
 
-            const firstCustomerAt = new Date(lead.created_at);
-            const firstMariaAt = eventDate;
-            const responseTimeSecs = Math.max(0, Math.round((firstMariaAt - firstCustomerAt) / 1000));
+            const firstCustomerAt    = new Date(lead.created_at);
+            const firstMariaAt       = eventDate;
+            const responseTimeSecs   = Math.max(0, Math.round((firstMariaAt - firstCustomerAt) / 1000));
+            const mariaMessageText   = smClickMessageText(payload) || `Primeira mensagem de ${TARGET_ATTENDANT_NAME}`;
 
             const updated = await pgPool.query(
                 `UPDATE leads_monitoring
-                 SET status = 'measured',
-                     answered_at = $1,
+                 SET status        = 'measured',
+                     answered_at   = $1,
                      response_time = $2,
                      maria_message = $3,
-                     maria_event_id = $4,
-                     attendant_name = $5,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $6 AND answered_at IS NULL
+                     attendant_name = $4,
+                     updated_at    = CURRENT_TIMESTAMP
+                 WHERE id = $5 AND answered_at IS NULL
                  RETURNING *`,
-                [
-                    firstMariaAt,
-                    responseTimeSecs,
-                    messageContent || `Primeira mensagem de ${TARGET_ATTENDANT_NAME}`,
-                    eventId,
-                    attendantName,
-                    lead.id
-                ]
+                [firstMariaAt, responseTimeSecs, mariaMessageText, sentByName, lead.id]
             );
 
             processingResult = updated.rows.length
                 ? 'first_maria_message_measured'
                 : 'ignored_already_measured';
 
-            await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName });
+            await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: sentByName });
             return res.status(200).json({
                 success: true,
                 action: processingResult,
@@ -1095,49 +1230,11 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
             });
         }
 
-        if (!incoming) {
-            processingResult = 'ignored_unrelated_event';
-            await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: null });
-            return res.status(200).json({ success: true, action: processingResult });
-        }
-
-        // O new-chat marca o início da medição. Eventos de entrada também funcionam como fallback
-        // quando a conta envia o primeiro texto do cliente em vez de um evento new-chat separado.
-        const customerName = extractCustomerName(payload);
-        const existingLead = await findExistingLead({
-            phone,
-            conversationId,
-            eventId,
-            eventDate,
-            messageContent,
-            newChat
-        });
-
-        if (existingLead) {
-            processingResult = 'ignored_duplicate_or_existing_chat';
-            await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: null });
-            return res.status(200).json({ success: true, action: processingResult, leadId: existingLead.id });
-        }
-
-        const inserted = await pgPool.query(
-            `INSERT INTO leads_monitoring
-             (customer_phone, customer_name, status, created_at, first_message,
-              conversation_id, first_event_id, updated_at)
-             VALUES ($1, $2, 'waiting_maria', $3, $4, $5, $6, CURRENT_TIMESTAMP)
-             RETURNING *`,
-            [
-                phone,
-                customerName,
-                eventDate,
-                messageContent || (newChat ? 'Novo chat iniciado (new-chat)' : 'Primeira mensagem do cliente'),
-                conversationId,
-                eventId
-            ]
-        );
-
-        processingResult = 'customer_first_message_recorded';
+        // ── 3. Outros eventos: ignorados ───────────────────────────────────────
+        processingResult = 'ignored_unrelated_event';
         await saveWebhookLog({ eventType, payload, result: processingResult, phone, attendantName: null });
-        return res.status(200).json({ success: true, action: processingResult, lead: inserted.rows[0] });
+        return res.status(200).json({ success: true, action: processingResult });
+
     } catch (err) {
         console.error('[Webhook] Erro ao processar webhook:', err);
         try {
@@ -1146,7 +1243,7 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                 payload,
                 result: `error:${err.message}`.slice(0, 100),
                 phone,
-                attendantName
+                attendantName: sentByName || null
             });
         } catch (logError) {
             console.error('[Webhook] Falha ao salvar log de erro:', logError.message);
