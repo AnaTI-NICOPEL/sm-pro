@@ -1252,6 +1252,9 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
             const t1 = new Date(msgSentAt);
             const responseTimeSecs = Math.max(0, Math.round((t1 - t0) / 1000));
 
+            const finalCustomerName = (clientName && clientName !== 'Cliente' && clientName !== 'Contato') ? clientName : lead.customer_name;
+            const finalCustomerPhone = (clientPhone && clientPhone !== 'unknown') ? clientPhone : lead.customer_phone;
+
             const updated = await pgPool.query(
                 `UPDATE leads_monitoring
                  SET status         = 'measured',
@@ -1259,10 +1262,12 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                      response_time  = $2,
                      maria_message  = $3,
                      attendant_name = $4,
+                     customer_name  = $5,
+                     customer_phone = $6,
                      updated_at     = CURRENT_TIMESTAMP
-                 WHERE id = $5 AND answered_at IS NULL
+                 WHERE id = $7 AND answered_at IS NULL
                  RETURNING *`,
-                [t1, responseTimeSecs, msgText || `Primeira mensagem de ${MARIA_NAME_TARGET}`, sentByName, lead.id]
+                [t1, responseTimeSecs, msgText || `Primeira mensagem de ${MARIA_NAME_TARGET}`, sentByName, finalCustomerName, finalCustomerPhone, lead.id]
             );
 
             processingResult = updated.rows.length ? 'first_maria_message_measured' : 'ignored_already_measured';
