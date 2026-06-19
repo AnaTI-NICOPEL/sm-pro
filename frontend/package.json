@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "prebuild": "rimraf .next",
     "dev": "node server.js",
-    "build": "next build",
+    "build": "npm run prebuild && next build",
     "start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
