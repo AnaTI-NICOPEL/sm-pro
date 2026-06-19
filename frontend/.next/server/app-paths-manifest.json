@@ -1,5 +1,0 @@
-{
-  "/api/sellers/dashboard/route": "app/api/sellers/dashboard/route.js",
-  "/sellers/page": "app/sellers/page.js",
-  "/api/sellers/route": "app/api/sellers/route.js"
-}
