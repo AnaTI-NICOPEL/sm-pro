@@ -155,6 +155,7 @@ async function initDb() {
                 first_event_id VARCHAR(255),
                 maria_event_id VARCHAR(255),
                 attendant_name VARCHAR(255),
+                attendant_id VARCHAR(255),
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -165,6 +166,7 @@ async function initDb() {
             ALTER TABLE leads_monitoring ADD COLUMN IF NOT EXISTS first_event_id VARCHAR(255);
             ALTER TABLE leads_monitoring ADD COLUMN IF NOT EXISTS maria_event_id VARCHAR(255);
             ALTER TABLE leads_monitoring ADD COLUMN IF NOT EXISTS attendant_name VARCHAR(255);
+            ALTER TABLE leads_monitoring ADD COLUMN IF NOT EXISTS attendant_id VARCHAR(255);
             ALTER TABLE leads_monitoring ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
             UPDATE leads_monitoring SET status = 'waiting_maria' WHERE status = 'pending' AND answered_at IS NULL;
             UPDATE leads_monitoring SET status = 'measured' WHERE status = 'answered' OR answered_at IS NOT NULL;
@@ -203,7 +205,19 @@ async function initDb() {
             ON CONFLICT (name) DO NOTHING;
         `);
         
-        console.log('✅ PostgreSQL tables (contatos, tags, leads_monitoring, webhook_logs) initialized and synced.');
+        // Garante que a tabela de vendedores existe
+        await pgPool.query(`
+            CREATE TABLE IF NOT EXISTS sellers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                attendant_id VARCHAR(255) UNIQUE NOT NULL,
+                photo_base64 TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        
+        console.log('✅ PostgreSQL tables (contatos, tags, leads_monitoring, webhook_logs, sellers) initialized and synced.');
     } catch (e) {
         console.error('❌ Failed to initialize PostgreSQL tables:', e.message);
     }
@@ -1264,10 +1278,11 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                      attendant_name = $4,
                      customer_name  = $5,
                      customer_phone = $6,
+                     attendant_id   = $7,
                      updated_at     = CURRENT_TIMESTAMP
-                 WHERE id = $7 AND answered_at IS NULL
+                 WHERE id = $8 AND answered_at IS NULL
                  RETURNING *`,
-                [t1, responseTimeSecs, msgText || `Primeira mensagem de ${MARIA_NAME_TARGET}`, sentByName, finalCustomerName, finalCustomerPhone, lead.id]
+                [t1, responseTimeSecs, msgText || `Primeira mensagem de ${MARIA_NAME_TARGET}`, sentByName, finalCustomerName, finalCustomerPhone, sentById, lead.id]
             );
 
             processingResult = updated.rows.length ? 'first_maria_message_measured' : 'ignored_already_measured';
@@ -1431,6 +1446,147 @@ app.post('/api/webhook-logs/clear', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('Error clearing webhook logs:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// Sellers API
+// ==========================================
+app.get('/api/sellers', async (req, res) => {
+    try {
+        const result = await pgPool.query('SELECT id, name, attendant_id, photo_base64, created_at, updated_at FROM sellers ORDER BY name ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching sellers:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/sellers', async (req, res) => {
+    const { name, attendant_id, photo_base64 } = req.body;
+    try {
+        const result = await pgPool.query(
+            `INSERT INTO sellers (name, attendant_id, photo_base64)
+             VALUES ($1, $2, $3) RETURNING *`,
+            [name, attendant_id, photo_base64]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating seller:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/sellers/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, attendant_id, photo_base64 } = req.body;
+    try {
+        const result = await pgPool.query(
+            `UPDATE sellers SET name = $1, attendant_id = $2, photo_base64 = $3, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $4 RETURNING *`,
+            [name, attendant_id, photo_base64, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error updating seller:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/sellers/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pgPool.query('DELETE FROM sellers WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error deleting seller:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
+// Dashboard API
+// ==========================================
+app.get('/api/dashboard', async (req, res) => {
+    const { startDate, endDate } = req.query;
+    try {
+        const params = [];
+        let joinCondition = `ON s.attendant_id = lm.attendant_id`;
+        if (startDate && endDate) {
+            joinCondition += ` AND lm.created_at >= $1 AND lm.created_at <= $2`;
+            params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+        }
+
+        const query = `
+            SELECT 
+                s.id, 
+                s.name, 
+                s.attendant_id, 
+                s.photo_base64,
+                COUNT(lm.id) as total_chats,
+                COUNT(CASE WHEN lm.status = 'waiting_maria' THEN 1 END) as open_chats,
+                COUNT(CASE WHEN lm.status = 'measured' THEN 1 END) as answered_chats,
+                AVG(CASE WHEN lm.status = 'measured' THEN lm.response_time END) as avg_response_time
+            FROM sellers s
+            LEFT JOIN leads_monitoring lm ${joinCondition}
+            GROUP BY s.id, s.name, s.attendant_id, s.photo_base64
+            ORDER BY avg_response_time ASC NULLS LAST, name ASC
+        `;
+
+        const result = await pgPool.query(query, params);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching dashboard:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/sellers/:id/chats', async (req, res) => {
+    const { id } = req.params;
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+    try {
+        const sellerResult = await pgPool.query('SELECT attendant_id FROM sellers WHERE id = $1', [id]);
+        if (!sellerResult.rows.length) {
+            return res.status(404).json({ error: 'Seller not found' });
+        }
+        
+        const attendantId = sellerResult.rows[0].attendant_id;
+        
+        let whereClause = `WHERE attendant_id = $1`;
+        const params = [attendantId];
+        let paramIndex = 2;
+        
+        if (startDate && endDate) {
+            whereClause += ` AND created_at >= $${paramIndex} AND created_at <= $${paramIndex + 1}`;
+            params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+            paramIndex += 2;
+        }
+        
+        const countQuery = `SELECT COUNT(*) FROM leads_monitoring ${whereClause}`;
+        const countResult = await pgPool.query(countQuery, params);
+        const total = parseInt(countResult.rows[0].count, 10);
+        
+        const offset = (page - 1) * limit;
+        const query = `
+            SELECT * FROM leads_monitoring 
+            ${whereClause} 
+            ORDER BY created_at DESC 
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+        
+        params.push(limit, offset);
+        const result = await pgPool.query(query, params);
+        
+        res.json({
+            data: result.rows,
+            total,
+            page: parseInt(page, 10),
+            limit: parseInt(limit, 10),
+            totalPages: Math.ceil(total / limit)
+        });
+    } catch (err) {
+        console.error('Error fetching seller chats:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
