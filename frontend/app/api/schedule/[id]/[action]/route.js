@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { pgPool } from '../../../../../lib/db';
-import { processMessage } from '../../../../../../server'; // We need access to processMessage
-// Wait, processMessage is defined in server.js. If we run inside Next.js API route, calling processMessage directly might be problematic because it triggers a long-running process in the request lifecycle.
-// A better way is to update the status in DB to 'pending' and set scheduled_at to now, and let node-cron pick it up in max 60s. Or we can just do that.
+
+
+
 
 export async function POST(request, { params }) {
     const { id, action } = params;

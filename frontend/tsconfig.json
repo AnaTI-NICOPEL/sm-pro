@@ -6,9 +6,7 @@
       "ES2023",
       "DOM"
     ],
-    "types": [
-      "vite/client"
-    ],
+    
     "skipLibCheck": true,
     /* Bundler mode */
     "moduleResolution": "bundler",
