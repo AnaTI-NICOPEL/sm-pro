@@ -32,11 +32,11 @@ ENV NODE_ENV=production
 
 COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
 COPY backend/ ./backend/
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY --from=frontend-builder /app/frontend/.next ./
 
 RUN mkdir -p /data \
     && rm -f /app/backend/database.sqlite \
     && ln -s /data/database.sqlite /app/backend/database.sqlite
 
-EXPOSE 3001
-CMD ["node", "backend/index.js"]
+EXPOSE 3000
+CMD ["node", "frontend/server.js"]
