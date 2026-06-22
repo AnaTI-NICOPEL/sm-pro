@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "prebuild": "rimraf .next",
+    "prebuild": "rm -rf .next",
     "dev": "node server.js",
     "build": "npm run prebuild && next build",
     "start": "NODE_ENV=production node server.js"
