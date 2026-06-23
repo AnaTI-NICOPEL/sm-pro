@@ -23,8 +23,8 @@ export async function POST(request) {
         }
 
         const result = await pgPool.query(
-            'INSERT INTO sellers (name, attendant_id, department_id, photo_base64) VALUES ($1, $2, $3, $4) RETURNING *',
-            [name, attendant_id, department_id, photo_base64 || null]
+            'INSERT INTO sellers (name, attendant_id, photo_base64) VALUES ($1, $2, $3) RETURNING *',
+            [name, attendant_id, photo_base64 || null]
         );
 
         return NextResponse.json(result.rows[0], { status: 201 });

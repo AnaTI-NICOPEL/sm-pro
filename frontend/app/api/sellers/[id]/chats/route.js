@@ -21,26 +21,33 @@ export async function GET(request, { params }) {
         const attendantId = sellerRes.rows[0].attendant_id;
 
         let dateFilter = '';
-        const queryParams = [attendantId];
+        let queryParams = [];
+        let countParams = [];
+        let limitIndex, offsetIndex;
         
         if (start && end) {
-            dateFilter = 'AND created_at >= $4 AND created_at <= $5::timestamp + interval \'1 day\'';
-            queryParams.push(limit, offset, start, end);
+            dateFilter = 'AND created_at >= $2 AND created_at <= $3::timestamp + interval \'1 day\'';
+            queryParams = [attendantId, start, end, limit, offset];
+            countParams = [attendantId, start, end];
+            limitIndex = '$4';
+            offsetIndex = '$5';
         } else {
-            queryParams.push(limit, offset);
+            queryParams = [attendantId, limit, offset];
+            countParams = [attendantId];
+            limitIndex = '$2';
+            offsetIndex = '$3';
         }
 
         const query = `
             SELECT id, customer_phone, customer_name, status, created_at, answered_at, response_time, first_message, maria_message 
             FROM leads_monitoring 
-            WHERE attendant_id = $1 ${dateFilter.replace('$4', '$2').replace('$5', '$3')}
+            WHERE attendant_id = $1 ${dateFilter}
             ORDER BY created_at DESC 
-            LIMIT $${start && end ? '4' : '2'} OFFSET $${start && end ? '5' : '3'}
+            LIMIT ${limitIndex} OFFSET ${offsetIndex}
         `;
         const result = await pgPool.query(query, queryParams);
 
-        const countQuery = `SELECT COUNT(*) FROM leads_monitoring WHERE attendant_id = $1 ${dateFilter.replace('$4', '$2').replace('$5', '$3')}`;
-        const countParams = start && end ? [attendantId, start, end] : [attendantId];
+        const countQuery = `SELECT COUNT(*) FROM leads_monitoring WHERE attendant_id = $1 ${dateFilter}`;
         const countResult = await pgPool.query(countQuery, countParams);
         
         const totalRecords = parseInt(countResult.rows[0].count, 10);
