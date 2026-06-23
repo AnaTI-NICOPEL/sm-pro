@@ -33,6 +33,8 @@ ENV NODE_ENV=production
 COPY --from=backend-builder /app/backend/node_modules ./backend/node_modules
 COPY backend/ ./backend/
 COPY --from=frontend-builder /app/frontend/.next ./
+COPY --from=frontend-builder /app/frontend/server.js ./frontend/server.js
+COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
 
 RUN mkdir -p /data \
     && rm -f /app/backend/database.sqlite \
