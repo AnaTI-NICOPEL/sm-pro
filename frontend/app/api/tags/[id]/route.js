@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { pgPool } from '../../../../lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(request, { params }) {
     const { id: oldName } = params;
     try {

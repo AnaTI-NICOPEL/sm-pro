@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { pgPool } from '../../../lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         const result = await pgPool.query('SELECT * FROM messages ORDER BY created_at DESC');

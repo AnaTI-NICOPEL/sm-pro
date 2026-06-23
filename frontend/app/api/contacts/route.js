@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { pgPool } from '../../../lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const tagsParam = searchParams.get('tags');

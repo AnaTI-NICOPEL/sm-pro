@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getStatus, startImportBackground, pauseImport, resumeImport, cancelImport } from '../../../../lib/importer';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
     const url = new URL(request.url);
     if (url.pathname.endsWith('/status')) {
