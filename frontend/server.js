@@ -4,8 +4,6 @@ const { parse } = require('url');
 const next = require('next');
 const nodeCron = require('node-cron');
 const { pgPool } = require('./lib/db');
-const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -122,64 +120,6 @@ async function initPostgres() {
     console.log('✅ PostgreSQL Schema Initialized');
 }
 
-async function migrateSqliteToPostgres() {
-    const sqlitePath = path.join(__dirname, '..', 'backend', 'database.sqlite');
-    if (!fs.existsSync(sqlitePath)) return;
-
-    console.log('🔄 Encontrado banco SQLite antigo. Iniciando migração para PostgreSQL...');
-    const db = await open({ filename: sqlitePath, driver: sqlite3.Database });
-
-    try {
-        const settings = await db.all('SELECT * FROM settings');
-        for (const s of settings) {
-            await pgPool.query(
-                'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2',
-                [s.key, s.value]
-            );
-        }
-
-        const messages = await db.all('SELECT * FROM messages');
-        for (const m of messages) {
-            await pgPool.query(
-                `INSERT INTO messages (id, tag, content, scheduled_at, status, created_at, media_name, media_base64) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
-                [m.id, m.tag, m.content, new Date(m.scheduled_at), m.status, new Date(m.created_at), m.media_name, m.media_base64]
-            );
-        }
-
-        // Set sequence to max id so next inserts don't fail
-        const maxMsgResult = await pgPool.query('SELECT MAX(id) FROM messages');
-        const maxMsgId = maxMsgResult.rows[0].max;
-        if (maxMsgId) {
-            await pgPool.query(`SELECT setval('messages_id_seq', ${maxMsgId})`);
-        }
-
-        const logs = await db.all('SELECT * FROM logs_envio');
-        for (const l of logs) {
-            await pgPool.query(
-                `INSERT INTO logs_envio (id, message_id, tag, content, contact_name, contact_number, status, error, sent_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
-                [l.id, l.message_id, l.tag, l.content, l.contact_name, l.contact_number, l.status, l.error, new Date(l.sent_at)]
-            );
-        }
-        
-        const maxLogResult = await pgPool.query('SELECT MAX(id) FROM logs_envio');
-        const maxLogId = maxLogResult.rows[0].max;
-        if (maxLogId) {
-            await pgPool.query(`SELECT setval('logs_envio_id_seq', ${maxLogId})`);
-        }
-
-        console.log('✅ Migração do SQLite concluída!');
-        
-        // Renomear o arquivo para evitar migração repetida
-        fs.renameSync(sqlitePath, sqlitePath + '.migrated');
-        
-    } catch (e) {
-        console.error('❌ Erro na migração do SQLite:', e);
-    } finally {
-        await db.close();
-    }
-}
 
 // Background Job - Cron para processamento de mensagens
 const activeProcesses = new Set();
@@ -326,8 +266,6 @@ async function processMessage(msg) {
 // Inicialização do servidor
 app.prepare().then(async () => {
     await initPostgres();
-    await migrateSqliteToPostgres();
-
     // Cron rodando a cada minuto
     nodeCron.schedule('* * * * *', async () => {
         const now = new Date();
