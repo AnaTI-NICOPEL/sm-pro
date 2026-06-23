@@ -21,23 +21,25 @@ export async function GET(request, { params }) {
         const attendantId = sellerRes.rows[0].attendant_id;
 
         let dateFilter = '';
-        const queryParams = [attendantId, limit, offset];
+        const queryParams = [attendantId];
         
         if (start && end) {
             dateFilter = 'AND created_at >= $4 AND created_at <= $5::timestamp + interval \'1 day\'';
-            queryParams.push(start, end);
+            queryParams.push(limit, offset, start, end);
+        } else {
+            queryParams.push(limit, offset);
         }
 
         const query = `
             SELECT id, customer_phone, customer_name, status, created_at, answered_at, response_time, first_message, maria_message 
             FROM leads_monitoring 
-            WHERE attendant_id = $1 ${dateFilter}
+            WHERE attendant_id = $1 ${dateFilter.replace('$4', '$2').replace('$5', '$3')}
             ORDER BY created_at DESC 
-            LIMIT ${limit} OFFSET ${offset}
+            LIMIT $${start && end ? '4' : '2'} OFFSET $${start && end ? '5' : '3'}
         `;
         const result = await pgPool.query(query, queryParams);
 
-        const countQuery = `SELECT COUNT(*) FROM leads_monitoring WHERE attendant_id = $1 ${dateFilter}`;
+        const countQuery = `SELECT COUNT(*) FROM leads_monitoring WHERE attendant_id = $1 ${dateFilter.replace('$4', '$2').replace('$5', '$3')}`;
         const countParams = start && end ? [attendantId, start, end] : [attendantId];
         const countResult = await pgPool.query(countQuery, countParams);
         
