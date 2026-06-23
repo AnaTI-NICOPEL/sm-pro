@@ -73,8 +73,8 @@ export async function POST(request) {
                             [answeredAt, responseTime, replyMessage, lead.id]
                         );
                         processingResult = `Maria answered in ${responseTime}s`;
-                    } else if (departmentId && attendantId !== mariaId) {
-                        // É um Vendedor (possui departamento e não é a Maria)
+                    } else if (attendantId && attendantId !== mariaId) {
+                        // É um Vendedor (não é a Maria e possui um attendantId)
                         await pgPool.query(
                             `UPDATE leads_monitoring 
                              SET answered_at = $1, response_time = $2, attendant_id = $3, attendant_name = $4, status = 'completed' 
