@@ -23,10 +23,12 @@ export default function Sellers() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await axios.get(`/api/dashboard?start=${startDate}&end=${endDate}`);
+      const res = await axios.get(`/api/sellers/dashboard?start=${startDate}&end=${endDate}`);
       setDashboardData(res.data);
+    console.log('Dashboard data fetched:', res.data);
       const sellersRes = await axios.get('/api/sellers');
       setSellers(sellersRes.data);
+    console.log('Sellers list fetched:', sellersRes.data);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
     } finally {
