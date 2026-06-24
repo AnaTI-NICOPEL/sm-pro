@@ -10,6 +10,7 @@ export async function POST(request) {
         
         let customerPhone = null;
         let attendantName = null;
+        let attendantId = null;
         let processingResult = 'Received';
 
         // Tenta extrair telefone e atendente dependendo da estrutura do webhook do SM Click
@@ -17,6 +18,14 @@ export async function POST(request) {
             customerPhone = payload.data.customer_phone || payload.data.whatsapp_id || payload.data.telephone;
             if (payload.data.attendant) {
                 attendantName = payload.data.attendant.name;
+                attendantId = payload.data.attendant.id;
+            }
+        } else {
+            // Formato SM Click (dados na raiz)
+            customerPhone = payload.phone || payload.to || payload.whatsapp_id || payload.customer_phone;
+            if (payload.attendant) {
+                attendantName = payload.attendant.name;
+                attendantId = payload.attendant.id;
             }
         }
 
@@ -28,10 +37,10 @@ export async function POST(request) {
         const logId = logRes.rows[0].id;
 
         // Processar Lead Monitoring (Exemplo de lógica baseada em eventos chat/message)
-        if (eventType === 'new_chat' || eventType === 'message_received') {
-            const customerName = payload.data?.customer_name || payload.data?.name || 'Desconhecido';
-            const firstMessage = payload.data?.message?.text || payload.data?.text || '';
-            const attendantId = payload.data?.attendant?.id || null;
+        if (eventType === 'new_chat' || eventType === 'new-chat' || eventType === 'message_received') {
+            const customerName = payload.data?.customer_name || payload.data?.name || payload.name || payload.customer_name || 'Desconhecido';
+            const firstMessage = payload.data?.message?.text || payload.data?.text || payload.text || payload.message?.text || '';
+            const finalAttendantId = payload.data?.attendant?.id || attendantId || null;
             
             // Verifica se já existe um lead pendente para este cliente
             if (customerPhone) {
@@ -41,18 +50,18 @@ export async function POST(request) {
                         `INSERT INTO leads_monitoring 
                          (customer_phone, customer_name, first_message, attendant_id, attendant_name, status) 
                          VALUES ($1, $2, $3, $4, $5, 'pending')`,
-                        [customerPhone, customerName, firstMessage, attendantId, attendantName]
+                        [customerPhone, customerName, firstMessage, finalAttendantId, attendantName]
                     );
                     processingResult = 'Lead created';
                 } else {
                     processingResult = 'Lead already pending';
                 }
             }
-        } else if (eventType === 'message_sent' || eventType === 'attendant_replied') {
-            const replyMessage = payload.data?.message?.text || payload.data?.text || '';
-            const departmentId = payload.data?.department?.id || null;
-            const attendantId = payload.data?.attendant?.id || null;
-            const attendantNamePayload = payload.data?.attendant?.name || null;
+        } else if (eventType === 'message_sent' || eventType === 'message-sent' || eventType === 'attendant_replied') {
+            const replyMessage = payload.data?.message?.text || payload.data?.text || payload.text || payload.message?.text || '';
+            const departmentId = payload.data?.department?.id || payload.department?.id || null;
+            const finalAttendantId = payload.data?.attendant?.id || attendantId || null;
+            const attendantNamePayload = payload.data?.attendant?.name || attendantName || null;
             const mariaId = process.env.LEAD_MONITOR_ATTENDANT_ID;
             
             if (customerPhone) {
@@ -64,7 +73,7 @@ export async function POST(request) {
                     const createdAt = new Date(lead.created_at);
                     const responseTime = Math.round((answeredAt - createdAt) / 1000); // em segundos
                     
-                    if (attendantId === mariaId && !departmentId) {
+                    if (finalAttendantId === mariaId && !departmentId) {
                         // É a Maria (ID confere e departamento nulo)
                         await pgPool.query(
                             `UPDATE leads_monitoring 
@@ -73,13 +82,13 @@ export async function POST(request) {
                             [answeredAt, responseTime, replyMessage, lead.id]
                         );
                         processingResult = `Maria answered in ${responseTime}s`;
-                    } else if (attendantId && attendantId !== mariaId) {
+                    } else if (finalAttendantId && finalAttendantId !== mariaId) {
                         // É um Vendedor (não é a Maria e possui um attendantId)
                         await pgPool.query(
                             `UPDATE leads_monitoring 
                              SET answered_at = $1, response_time = $2, attendant_id = $3, attendant_name = $4, status = 'completed' 
                              WHERE id = $5`,
-                            [answeredAt, responseTime, attendantId, attendantNamePayload, lead.id]
+                            [answeredAt, responseTime, finalAttendantId, attendantNamePayload, lead.id]
                         );
                         processingResult = `Seller ${attendantNamePayload} answered in ${responseTime}s`;
                     } else {
