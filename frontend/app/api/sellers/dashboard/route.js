@@ -25,7 +25,7 @@ export async function GET(request) {
                 COUNT(l.answered_at) as answered_chats,
                 AVG(l.response_time) as avg_response_time
             FROM sellers s
-            LEFT JOIN leads_monitoring l ON s.attendant_id = l.attendant_id ${dateFilter}
+            LEFT JOIN leads_monitoring l ON s.name = l.attendant_name ${dateFilter}
             GROUP BY s.id, s.name, s.photo_base64
             ORDER BY avg_response_time ASC NULLS LAST
         `;
