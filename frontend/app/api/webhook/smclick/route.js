@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { pgPool } from '../../../../lib/db';
+import { calculateBusinessSeconds } from '../../../../lib/businessHours';
 
 export const dynamic = 'force-dynamic';
+
 
 export async function POST(request) {
     try {
@@ -98,7 +100,7 @@ export async function POST(request) {
                     const lead = pending.rows[0];
                     const answeredAt = new Date();
                     const createdAt = new Date(lead.created_at);
-                    const responseTime = Math.round((answeredAt - createdAt) / 1000); // em segundos
+                    const responseTime = calculateBusinessSeconds(createdAt, answeredAt); // em segundos de horário comercial
                     
                     if (attendantId === mariaId && !departmentId) {
                         // É a Maria (ID confere e departamento nulo)
