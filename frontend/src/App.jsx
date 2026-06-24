@@ -26,6 +26,7 @@ import {
   Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { calculateBusinessSeconds } from '../lib/businessHours';
 
 const API_BASE = '/api';
 
@@ -92,7 +93,7 @@ function App() {
       if (measured) {
         formattedTime = formatResponseTime(Number(lead.response_time));
       } else {
-        const elapsed = Math.max(0, Math.round((clockNow - new Date(lead.created_at).getTime()) / 1000));
+        const elapsed = calculateBusinessSeconds(new Date(lead.created_at), new Date(clockNow));
         formattedTime = `Em andamento (${formatResponseTime(elapsed)})`;
       }
 
@@ -1530,7 +1531,7 @@ function App() {
                       const measured = Boolean(lead.answered_at && lead.response_time !== null);
                       const elapsed = measured
                         ? Number(lead.response_time)
-                        : Math.max(0, Math.round((clockNow - new Date(lead.created_at).getTime()) / 1000));
+                        : calculateBusinessSeconds(new Date(lead.created_at), new Date(clockNow));
 
                       return (
                         <tr key={lead.id}>

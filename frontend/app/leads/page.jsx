@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { RefreshCw, Download, Play, Activity, Clock, Eye, MessageSquare, Trash2, FileText, X } from 'lucide-react';
+import { calculateBusinessSeconds } from '../../lib/businessHours';
 
 export default function LeadsMonitoring() {
   const [leadsSubTab, setLeadsSubTab] = useState('active');
@@ -191,7 +192,7 @@ export default function LeadsMonitoring() {
                     const measured = Boolean(lead.answered_at && lead.response_time !== null);
                     const elapsed = measured
                       ? Number(lead.response_time)
-                      : Math.max(0, Math.round((clockNow - new Date(lead.created_at).getTime()) / 1000));
+                      : calculateBusinessSeconds(new Date(lead.created_at), new Date(clockNow));
 
                     return (
                       <tr key={lead.id}>
