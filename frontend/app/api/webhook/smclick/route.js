@@ -9,24 +9,54 @@ export async function POST(request) {
         const eventType = payload.event || payload.type || 'unknown';
         
         let customerPhone = null;
+        let customerName = 'Desconhecido';
         let attendantName = null;
         let attendantId = null;
+        let messageText = '';
+        let departmentId = null;
+        let isFromMe = false;
         let processingResult = 'Received';
 
-        // Tenta extrair telefone e atendente dependendo da estrutura do webhook do SM Click
-        if (payload.data) {
+        // 1. Extração Inteligente: Tenta ler da nova estrutura "infos", ou fallback para "data" / "raiz"
+        if (payload.infos) {
+            const chatInfo = payload.infos.chat || {};
+            const messageInfo = payload.infos.message || {};
+            const lastMessageInfo = chatInfo.last_message || {};
+            const contactInfo = chatInfo.contact || {};
+
+            customerPhone = contactInfo.telephone || null;
+            customerName = contactInfo.name || 'Desconhecido';
+            departmentId = chatInfo.department?.id || null;
+
+            if (eventType === 'new-chat-message') {
+                messageText = messageInfo.content?.text || '';
+                attendantId = messageInfo.sent_by?.id || null;
+                attendantName = messageInfo.sent_by?.name || null;
+                isFromMe = messageInfo.from_me === true;
+            } else {
+                messageText = lastMessageInfo.content?.text || '';
+                attendantId = lastMessageInfo.sent_by?.id || null;
+                attendantName = lastMessageInfo.sent_by?.name || null;
+                isFromMe = lastMessageInfo.from_me === true;
+            }
+        } else if (payload.data) {
+            // Fallback para formato antigo (data)
             customerPhone = payload.data.customer_phone || payload.data.whatsapp_id || payload.data.telephone;
-            if (payload.data.attendant) {
-                attendantName = payload.data.attendant.name;
-                attendantId = payload.data.attendant.id;
-            }
+            customerName = payload.data.customer_name || payload.data.name || 'Desconhecido';
+            attendantName = payload.data.attendant?.name || null;
+            attendantId = payload.data.attendant?.id || null;
+            messageText = payload.data.message?.text || payload.data.text || '';
+            departmentId = payload.data.department?.id || null;
+            isFromMe = payload.data.fromMe === true;
         } else {
-            // Formato SM Click (dados na raiz)
+            // Fallback para formato antigo (raiz)
             customerPhone = payload.phone || payload.to || payload.whatsapp_id || payload.customer_phone;
-            if (payload.attendant) {
-                attendantName = payload.attendant.name;
-                attendantId = payload.attendant.id;
-            }
+            customerName = payload.name || payload.customer_name || 'Desconhecido';
+            attendantName = payload.attendant?.name || null;
+            attendantId = payload.attendant?.id || null;
+            messageText = payload.text || payload.message?.text || '';
+            departmentId = payload.department?.id || null;
+            isFromMe = payload.fromMe === true;
         }
 
         // Salvar log bruto
@@ -36,12 +66,11 @@ export async function POST(request) {
         );
         const logId = logRes.rows[0].id;
 
-        // Processar Lead Monitoring (Exemplo de lógica baseada em eventos chat/message)
-        if (eventType === 'new_chat' || eventType === 'new-chat' || eventType === 'message_received') {
-            const customerName = payload.data?.customer_name || payload.data?.name || payload.name || payload.customer_name || 'Desconhecido';
-            const firstMessage = payload.data?.message?.text || payload.data?.text || payload.text || payload.message?.text || '';
-            const finalAttendantId = payload.data?.attendant?.id || attendantId || null;
-            
+        const isNewChatEvent = eventType === 'new_chat' || eventType === 'new-chat' || eventType === 'chat-started' || eventType === 'message_received' || (eventType === 'new-chat-message' && !isFromMe);
+        const isReplyEvent = eventType === 'message_sent' || eventType === 'message-sent' || eventType === 'attendant_replied' || (eventType === 'new-chat-message' && isFromMe);
+
+        // Processar Lead Monitoring
+        if (isNewChatEvent) {
             // Verifica se já existe um lead pendente para este cliente
             if (customerPhone) {
                 const existing = await pgPool.query('SELECT id FROM leads_monitoring WHERE customer_phone = $1 AND status = $2', [customerPhone, 'pending']);
@@ -50,18 +79,16 @@ export async function POST(request) {
                         `INSERT INTO leads_monitoring 
                          (customer_phone, customer_name, first_message, attendant_id, attendant_name, status) 
                          VALUES ($1, $2, $3, $4, $5, 'pending')`,
-                        [customerPhone, customerName, firstMessage, finalAttendantId, attendantName]
+                        [customerPhone, customerName, messageText, attendantId, attendantName]
                     );
                     processingResult = 'Lead created';
                 } else {
                     processingResult = 'Lead already pending';
                 }
+            } else {
+                processingResult = 'Ignored: No customer phone found';
             }
-        } else if (eventType === 'message_sent' || eventType === 'message-sent' || eventType === 'attendant_replied') {
-            const replyMessage = payload.data?.message?.text || payload.data?.text || payload.text || payload.message?.text || '';
-            const departmentId = payload.data?.department?.id || payload.department?.id || null;
-            const finalAttendantId = payload.data?.attendant?.id || attendantId || null;
-            const attendantNamePayload = payload.data?.attendant?.name || attendantName || null;
+        } else if (isReplyEvent) {
             const mariaId = process.env.LEAD_MONITOR_ATTENDANT_ID;
             
             if (customerPhone) {
@@ -73,30 +100,32 @@ export async function POST(request) {
                     const createdAt = new Date(lead.created_at);
                     const responseTime = Math.round((answeredAt - createdAt) / 1000); // em segundos
                     
-                    if (finalAttendantId === mariaId && !departmentId) {
+                    if (attendantId === mariaId && !departmentId) {
                         // É a Maria (ID confere e departamento nulo)
                         await pgPool.query(
                             `UPDATE leads_monitoring 
                              SET answered_at = $1, response_time = $2, maria_message = $3, status = 'completed' 
                              WHERE id = $4`,
-                            [answeredAt, responseTime, replyMessage, lead.id]
+                            [answeredAt, responseTime, messageText, lead.id]
                         );
                         processingResult = `Maria answered in ${responseTime}s`;
-                    } else if (finalAttendantId && finalAttendantId !== mariaId) {
+                    } else if (attendantId && attendantId !== mariaId) {
                         // É um Vendedor (não é a Maria e possui um attendantId)
                         await pgPool.query(
                             `UPDATE leads_monitoring 
                              SET answered_at = $1, response_time = $2, attendant_id = $3, attendant_name = $4, status = 'completed' 
                              WHERE id = $5`,
-                            [answeredAt, responseTime, finalAttendantId, attendantNamePayload, lead.id]
+                            [answeredAt, responseTime, attendantId, attendantName, lead.id]
                         );
-                        processingResult = `Seller ${attendantNamePayload} answered in ${responseTime}s`;
+                        processingResult = `Seller ${attendantName} answered in ${responseTime}s`;
                     } else {
                         processingResult = 'Ignored: Does not match Maria or Seller rules';
                     }
                 } else {
                     processingResult = 'No pending lead found for this reply';
                 }
+            } else {
+                processingResult = 'Ignored: No customer phone found for reply';
             }
         }
 
