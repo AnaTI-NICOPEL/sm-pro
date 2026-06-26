@@ -99,20 +99,48 @@ export default function LeadsMonitoring() {
             Calcula o intervalo entre a primeira mensagem do cliente e a primeira mensagem do atendente.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            type="date"
-            className="input"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-          <span style={{ color: 'var(--text-dim)' }}>até</span>
-          <input
-            type="date"
-            className="input"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            background: 'rgba(255,255,255,0.05)', 
+            border: '1px solid rgba(255,255,255,0.1)', 
+            borderRadius: '8px', 
+            padding: '0.25rem',
+            gap: '0.5rem'
+          }}>
+            <input
+              type="date"
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: 'var(--text-main)', 
+                padding: '0.5rem', 
+                outline: 'none',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                cursor: 'pointer'
+              }}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem', fontWeight: 500 }}>até</span>
+            <input
+              type="date"
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: 'var(--text-main)', 
+                padding: '0.5rem', 
+                outline: 'none',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                cursor: 'pointer'
+              }}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
           <button
             className="btn btn-secondary"
             onClick={handleRefresh}

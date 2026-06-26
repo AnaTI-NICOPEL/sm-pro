@@ -138,14 +138,51 @@ export default function Sellers() {
       </header>
 
       {/* Filtros */}
-      <div className="card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Data Inicial</label>
-          <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} />
+      <div className="card glass" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main)' }}>Filtrar Período</h3>
+          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-dim)' }}>Selecione o intervalo para as estatísticas abaixo</p>
         </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label>Data Final</label>
-          <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} />
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          background: 'rgba(255,255,255,0.05)', 
+          border: '1px solid rgba(255,255,255,0.1)', 
+          borderRadius: '8px', 
+          padding: '0.25rem',
+          gap: '0.5rem'
+        }}>
+          <input
+            type="date"
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: 'var(--text-main)', 
+              padding: '0.5rem', 
+              outline: 'none',
+              fontFamily: 'inherit',
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+          />
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.9rem', fontWeight: 500 }}>até</span>
+          <input
+            type="date"
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: 'var(--text-main)', 
+              padding: '0.5rem', 
+              outline: 'none',
+              fontFamily: 'inherit',
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+          />
         </div>
       </div>
 
@@ -195,9 +232,11 @@ export default function Sellers() {
                     style={{ cursor: 'pointer', background: expandedSellerId === data.id ? 'rgba(59, 130, 246, 0.1)' : 'transparent' }}
                     onClick={() => toggleSeller(data.id)}
                   >
-                    <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {expandedSellerId === data.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      {data.name}
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {expandedSellerId === data.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {data.name}
+                      </div>
                     </td>
                     <td>{data.total_chats}</td>
                     <td>{data.answered_chats}</td>

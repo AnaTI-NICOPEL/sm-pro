@@ -37,6 +37,7 @@ export default function Sidebar() {
               key={link.href} 
               href={link.href}
               className={`nav-item ${isActive ? 'active' : ''}`}
+              scroll={false}
             >
               <Icon size={20} />
               <span>{link.label}</span>
