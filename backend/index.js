@@ -1236,8 +1236,18 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                 return res.status(200).json({ success: true, action: processingResult });
             }
 
-            if (!isMaria) {
-                processingResult = sentByName ? `ignored_other_attendant:${sentByName}` : 'ignored_attendant_not_identified';
+            // Busca se o sentById (ou sentByName) pertence a algum vendedor cadastrado
+            let seller = null;
+            if (sentById) {
+                const sellerQuery = await pgPool.query('SELECT name, attendant_id FROM sellers WHERE attendant_id = $1 LIMIT 1', [sentById]);
+                if (sellerQuery.rows.length > 0) seller = sellerQuery.rows[0];
+            } else if (sentByName) {
+                const sellerQuery = await pgPool.query('SELECT name, attendant_id FROM sellers WHERE name = $1 LIMIT 1', [sentByName]);
+                if (sellerQuery.rows.length > 0) seller = sellerQuery.rows[0];
+            }
+
+            if (!seller) {
+                processingResult = sentByName ? `ignored_unregistered_attendant:${sentByName}` : 'ignored_attendant_not_identified';
                 await saveWebhookLog({ eventType: body.event, payload: body, result: processingResult, phone: clientPhone, attendantName: sentByName });
                 return res.status(200).json({ success: true, action: processingResult });
             }
@@ -1286,7 +1296,7 @@ app.post(['/api/webhook', '/api/webhook/smclick'], async (req, res) => {
                      updated_at     = CURRENT_TIMESTAMP
                  WHERE id = $8 AND answered_at IS NULL
                  RETURNING *`,
-                [t1, responseTimeSecs, msgText || `Primeira mensagem de ${MARIA_NAME_TARGET}`, sentByName, finalCustomerName, finalCustomerPhone, sentById, lead.id]
+                [t1, responseTimeSecs, msgText || `Primeira mensagem de ${seller.name}`, seller.name, finalCustomerName, finalCustomerPhone, seller.attendant_id, lead.id]
             );
 
             processingResult = updated.rows.length ? 'first_maria_message_measured' : 'ignored_already_measured';
