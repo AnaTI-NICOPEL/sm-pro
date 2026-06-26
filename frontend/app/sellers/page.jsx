@@ -120,7 +120,7 @@ export default function Sellers() {
   };
 
   const formatResponseTime = (seconds) => {
-    if (!seconds) return '-';
+    if (seconds === null || seconds === undefined || isNaN(seconds)) return '-';
     if (seconds < 60) return `${Math.round(seconds)}s`;
     return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
   };

@@ -400,7 +400,13 @@ export default function LeadsMonitoring() {
                 background: 'rgba(0,0,0,0.4)', padding: '1rem', borderRadius: '8px', overflow: 'auto', maxHeight: '350px',
                 fontFamily: 'monospace', fontSize: '0.8rem', color: '#34d399', border: '1px solid rgba(255,255,255,0.05)'
               }}>
-                {JSON.stringify(JSON.parse(inspectPayload.payload), null, 2)}
+                {(() => {
+                  try {
+                    return JSON.stringify(JSON.parse(inspectPayload.payload), null, 2);
+                  } catch (e) {
+                    return `[Formato Inválido] Falha ao analisar JSON.\n\nConteúdo bruto recebido:\n${inspectPayload.payload}`;
+                  }
+                })()}
               </pre>
             </div>
           </div>

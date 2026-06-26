@@ -1,3 +1,7 @@
+// Cria o formatador apenas uma vez na memória para não sobrecarregar a CPU
+const options = { timeZone: 'America/Sao_Paulo', hour12: false, weekday: 'short', hour: 'numeric', minute: 'numeric' };
+const formatter = new Intl.DateTimeFormat('en-US', options);
+
 export function calculateBusinessSeconds(startDate, endDate) {
     let current = new Date(startDate.getTime());
     let businessSeconds = 0;
@@ -19,9 +23,7 @@ export function calculateBusinessSeconds(startDate, endDate) {
         const stepEnd = nextMinute > endDate ? endDate : nextMinute;
         const stepSeconds = (stepEnd.getTime() - current.getTime()) / 1000;
 
-        // Formata a hora para o fuso horário de São Paulo (America/Sao_Paulo)
-        const options = { timeZone: 'America/Sao_Paulo', hour12: false, weekday: 'short', hour: 'numeric', minute: 'numeric' };
-        const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(current);
+        const parts = formatter.formatToParts(current);
         
         let weekday, hour, minute;
         for (const part of parts) {
