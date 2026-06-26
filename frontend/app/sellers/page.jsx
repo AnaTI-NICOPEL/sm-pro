@@ -17,6 +17,20 @@ export default function Sellers() {
   const [showModal, setShowModal] = useState(false);
   const [editingSellerId, setEditingSellerId] = useState(null);
 
+  const safeFormat = (dateString, fmt = 'dd/MM/yyyy HH:mm:ss') => {
+    try {
+      if (!dateString) return '-';
+      let d = new Date(dateString);
+      if (typeof dateString === 'string' && !dateString.endsWith('Z') && !dateString.includes('T')) {
+          d = new Date(dateString.replace(' ', 'T') + 'Z');
+      }
+      if (isNaN(d.getTime())) return '-';
+      return format(d, fmt);
+    } catch (e) {
+      return '-';
+    }
+  };
+
   useEffect(() => {
     fetchDashboard();
   }, [startDate, endDate]);
@@ -214,7 +228,7 @@ export default function Sellers() {
                                 {sellerChats[data.id].chats.map(chat => (
                                   <tr key={chat.id}>
                                     <td>{chat.customer_name} ({chat.customer_phone})</td>
-                                    <td>{format(new Date(chat.created_at), 'dd/MM/yyyy HH:mm')}</td>
+                                    <td>{safeFormat(chat.created_at, 'dd/MM/yyyy HH:mm')}</td>
                                     <td>{formatResponseTime(chat.response_time)}</td>
                                     <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                       {chat.maria_message || '-'}

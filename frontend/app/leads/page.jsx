@@ -62,6 +62,21 @@ export default function LeadsMonitoring() {
     return `${hours}h ${remainingMinutes}m ${remainingSeconds}s`;
   };
 
+  const safeFormat = (dateString, fmt = 'dd/MM/yyyy HH:mm:ss') => {
+    try {
+      if (!dateString) return '-';
+      let d = new Date(dateString);
+      // Fallback for timestamps missing Z
+      if (typeof dateString === 'string' && !dateString.endsWith('Z') && !dateString.includes('T')) {
+          d = new Date(dateString.replace(' ', 'T') + 'Z');
+      }
+      if (isNaN(d.getTime())) return '-';
+      return format(d, fmt);
+    } catch (e) {
+      return '-';
+    }
+  };
+
   const measuredLeads = leads.filter(lead => lead.answered_at && lead.response_time !== null);
   const waitingLeads = leads.filter(lead => !lead.answered_at);
   const avgSeconds = measuredLeads.length > 0
@@ -189,10 +204,15 @@ export default function LeadsMonitoring() {
                 </thead>
                 <tbody>
                   {leads.map(lead => {
+                    const createdAtStr = lead.created_at;
+                    let parsedDate = new Date(createdAtStr);
+                    if (typeof createdAtStr === 'string' && !createdAtStr.endsWith('Z') && !createdAtStr.includes('T')) {
+                        parsedDate = new Date(createdAtStr.replace(' ', 'T') + 'Z');
+                    }
                     const measured = Boolean(lead.answered_at && lead.response_time !== null);
                     const elapsed = measured
                       ? Number(lead.response_time)
-                      : calculateBusinessSeconds(new Date(lead.created_at), new Date(clockNow));
+                      : calculateBusinessSeconds(isNaN(parsedDate.getTime()) ? new Date() : parsedDate, new Date(clockNow));
 
                     return (
                       <tr key={lead.id}>
@@ -205,7 +225,7 @@ export default function LeadsMonitoring() {
                         <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {lead.first_message || '-'}
                         </td>
-                        <td>{format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm')}</td>
+                        <td>{safeFormat(lead.created_at, 'dd/MM/yyyy HH:mm')}</td>
                         <td>
                           <span className={`status-badge ${measured ? 'status-success' : 'status-pending'}`}>
                             {measured ? 'Calculado' : 'Aguardando'}
@@ -275,7 +295,7 @@ export default function LeadsMonitoring() {
               <tbody>
                 {webhookLogs.map(log => (
                   <tr key={log.id}>
-                    <td>{format(new Date(log.received_at), 'dd/MM/yyyy HH:mm:ss')}</td>
+                    <td>{safeFormat(log.received_at, 'dd/MM/yyyy HH:mm:ss')}</td>
                     <td>
                       <span className="status-badge" style={{ background: 'rgba(56, 189, 248, 0.1)', color: 'var(--accent)' }}>
                         {log.event_type}
@@ -338,7 +358,7 @@ export default function LeadsMonitoring() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ alignSelf: 'flex-start', maxWidth: '85%', background: 'rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '12px 12px 12px 0', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', display: 'block', marginBottom: '0.25rem' }}>
-                    Cliente em {format(new Date(selectedLeadDetails.created_at), 'dd/MM/yyyy HH:mm:ss')}
+                    Cliente em {safeFormat(selectedLeadDetails.created_at, 'dd/MM/yyyy HH:mm:ss')}
                   </span>
                   <p style={{ margin: 0, fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
                     {selectedLeadDetails.first_message || 'Novo chat iniciado'}
@@ -348,7 +368,7 @@ export default function LeadsMonitoring() {
                 {selectedLeadDetails.answered_at ? (
                   <div style={{ alignSelf: 'flex-end', maxWidth: '85%', background: 'rgba(59, 130, 246, 0.2)', padding: '0.75rem 1rem', borderRadius: '12px 12px 0 12px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--accent)', display: 'block', marginBottom: '0.25rem', textAlign: 'right' }}>
-                      Primeira mensagem do Atendente em {format(new Date(selectedLeadDetails.answered_at), 'dd/MM/yyyy HH:mm:ss')}
+                      Primeira mensagem do Atendente em {safeFormat(selectedLeadDetails.answered_at, 'dd/MM/yyyy HH:mm:ss')}
                     </span>
                     <p style={{ margin: 0, fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
                       {selectedLeadDetails.maria_message}

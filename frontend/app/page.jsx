@@ -10,6 +10,20 @@ export default function Dashboard() {
   const [logsStats, setLogsStats] = useState({ totalSuccess: 0, totalFailed: 0 });
   const [loading, setLoading] = useState(false);
 
+  const safeFormat = (dateString, fmt = 'dd/MM/yyyy HH:mm:ss') => {
+    try {
+      if (!dateString) return '-';
+      let d = new Date(dateString);
+      if (typeof dateString === 'string' && !dateString.endsWith('Z') && !dateString.includes('T')) {
+          d = new Date(dateString.replace(' ', 'T') + 'Z');
+      }
+      if (isNaN(d.getTime())) return '-';
+      return format(d, fmt);
+    } catch (e) {
+      return '-';
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [schedulesRes, logsRes] = await Promise.all([
@@ -148,7 +162,7 @@ export default function Dashboard() {
               <tr key={schedule.id}>
                 <td><span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Tag size={14} /> {schedule.tag}</span></td>
                 <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{schedule.content}</td>
-                <td>{format(new Date(schedule.scheduled_at), 'dd/MM/yyyy HH:mm')}</td>
+                <td>{safeFormat(schedule.scheduled_at, 'dd/MM/yyyy HH:mm')}</td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <span className={`status-badge status-${schedule.status}`}>{schedule.status}</span>
