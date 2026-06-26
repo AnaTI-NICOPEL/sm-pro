@@ -182,6 +182,12 @@ async function initDb() {
             CREATE INDEX IF NOT EXISTS idx_logs_envio_status ON logs_envio(status);
             CREATE INDEX IF NOT EXISTS idx_logs_envio_sent_at ON logs_envio(sent_at);
             CREATE INDEX IF NOT EXISTS idx_contatos_telefone ON contatos(telefone);
+
+            -- Hash Indexes for equality queries
+            CREATE INDEX IF NOT EXISTS idx_logs_message_id_hash ON logs_envio USING HASH (message_id);
+            CREATE INDEX IF NOT EXISTS idx_contatos_telefone_hash ON contatos USING HASH (telefone);
+            CREATE INDEX IF NOT EXISTS idx_leads_conversation_hash ON leads_monitoring USING HASH (conversation_id);
+            CREATE INDEX IF NOT EXISTS idx_leads_attendant_hash ON leads_monitoring USING HASH (attendant_id);
         `);
 
         // Garante que a tabela de logs de webhook existe
