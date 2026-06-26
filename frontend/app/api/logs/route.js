@@ -24,14 +24,15 @@ export async function GET(request) {
         }
 
         if (search) {
-            conditions.push(`telefone ILIKE $${valueCount}`);
+            conditions.push(`contact_number ILIKE $${valueCount}`);
             values.push(`%${search}%`);
             valueCount++;
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const countQuery = `SELECT COUNT(*) FROM logs_envio ${whereClause}`;
+        // Fast bounded count for pagination
+        const countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM logs_envio ${whereClause} LIMIT 10000) as bounded_count`;
         const countResult = await pgPool.query(countQuery, values);
         const total = parseInt(countResult.rows[0].count);
         const totalPages = Math.ceil(total / limit) || 1;
@@ -39,7 +40,8 @@ export async function GET(request) {
         const dataQuery = `SELECT * FROM logs_envio ${whereClause} ORDER BY sent_at DESC LIMIT $${valueCount} OFFSET $${valueCount + 1}`;
         const dataResult = await pgPool.query(dataQuery, [...values, limit, offset]);
 
-        const statsQuery = `SELECT status, COUNT(*) FROM logs_envio GROUP BY status`;
+        // Fast bounded stats for dashboard (last 10000 logs)
+        const statsQuery = `SELECT status, COUNT(*) FROM (SELECT status FROM logs_envio ORDER BY sent_at DESC LIMIT 10000) as bounded_stats GROUP BY status`;
         const statsResult = await pgPool.query(statsQuery);
         let totalSuccess = 0;
         let totalFailed = 0;

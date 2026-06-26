@@ -127,7 +127,7 @@ export default function Logs() {
                           }
                         })()}
                       </td>
-                      <td style={{ fontWeight: '500' }}>{log.telefone}</td>
+                      <td style={{ fontWeight: '500' }}>{log.contact_number}</td>
                       <td>
                         {log.status === 'success' ? (
                           <span className="status-badge status-success" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', width: 'fit-content' }}>
@@ -140,7 +140,7 @@ export default function Logs() {
                         )}
                       </td>
                       <td style={{ fontSize: '0.85rem', color: log.status === 'failed' ? 'var(--danger)' : 'var(--text-dim)', maxWidth: '250px', whiteSpace: 'normal' }}>
-                        {log.error_message || 'Enviado com sucesso'}
+                        {log.error || 'Enviado com sucesso'}
                       </td>
                       <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
                         {log.smclick_message_id || '-'}
