@@ -20,7 +20,7 @@ export default function ImportContacts() {
 
   useEffect(() => {
     fetchImportStatus();
-    const interval = setInterval(fetchImportStatus, 2000);
+    const interval = setInterval(fetchImportStatus, 5000);
     return () => clearInterval(interval);
   }, []);
 

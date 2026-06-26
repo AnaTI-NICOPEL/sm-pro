@@ -117,6 +117,11 @@ async function initPostgres() {
         );
     `);
 
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_logs_envio_status ON logs_envio(status);`);
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_logs_envio_sent_at ON logs_envio(sent_at);`);
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_messages_status_scheduled ON messages(status, scheduled_at);`);
+    await pgPool.query(`CREATE INDEX IF NOT EXISTS idx_contatos_telefone ON contatos(telefone);`);
+
     console.log('✅ PostgreSQL Schema Initialized');
 }
 

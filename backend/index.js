@@ -178,6 +178,10 @@ async function initDb() {
             CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_first_event_unique
                 ON leads_monitoring(first_event_id)
                 WHERE first_event_id IS NOT NULL;
+
+            CREATE INDEX IF NOT EXISTS idx_logs_envio_status ON logs_envio(status);
+            CREATE INDEX IF NOT EXISTS idx_logs_envio_sent_at ON logs_envio(sent_at);
+            CREATE INDEX IF NOT EXISTS idx_contatos_telefone ON contatos(telefone);
         `);
 
         // Garante que a tabela de logs de webhook existe
