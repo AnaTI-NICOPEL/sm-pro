@@ -13,19 +13,22 @@ export default function LeadsMonitoring() {
   const [clockNow, setClockNow] = useState(Date.now());
   const [selectedLeadDetails, setSelectedLeadDetails] = useState(null);
   const [inspectPayload, setInspectPayload] = useState(null);
+  
+  const [startDate, setStartDate] = useState(format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   useEffect(() => {
     fetchLeadsData();
     const interval = setInterval(() => setClockNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchLeadsData = async () => {
     setIsRefreshing(true);
     try {
       const [leadsRes, logsRes] = await Promise.all([
-        axios.get('/api/leads'),
-        axios.get('/api/webhook/logs')
+        axios.get(`/api/leads?start=${startDate}&end=${endDate}`),
+        axios.get(`/api/webhook/logs?start=${startDate}&end=${endDate}`)
       ]);
       setLeads(leadsRes.data || []);
       setWebhookLogs(logsRes.data || []);
@@ -97,6 +100,19 @@ export default function LeadsMonitoring() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="date"
+            className="input"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+          <span style={{ color: 'var(--text-dim)' }}>até</span>
+          <input
+            type="date"
+            className="input"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
           <button
             className="btn btn-secondary"
             onClick={handleRefresh}
