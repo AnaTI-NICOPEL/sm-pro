@@ -39,12 +39,23 @@ export async function GET(request) {
         const dataQuery = `SELECT * FROM logs_envio ${whereClause} ORDER BY sent_at DESC LIMIT $${valueCount} OFFSET $${valueCount + 1}`;
         const dataResult = await pgPool.query(dataQuery, [...values, limit, offset]);
 
+        const statsQuery = `SELECT status, COUNT(*) FROM logs_envio GROUP BY status`;
+        const statsResult = await pgPool.query(statsQuery);
+        let totalSuccess = 0;
+        let totalFailed = 0;
+        statsResult.rows.forEach(row => {
+            if (row.status === 'success') totalSuccess = parseInt(row.count);
+            if (row.status === 'failed') totalFailed = parseInt(row.count);
+        });
+
         return NextResponse.json({
             logs: dataResult.rows,
             total,
             totalPages,
             currentPage: page,
-            limit
+            limit,
+            totalSuccess,
+            totalFailed
         });
     } catch (error) {
         console.error('Error fetching logs:', error);

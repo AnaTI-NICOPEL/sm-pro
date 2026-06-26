@@ -7,6 +7,7 @@ import { CheckCircle2, Clock, AlertCircle, Tag, List, Trash2 } from 'lucide-reac
 export default function Dashboard() {
   const [schedules, setSchedules] = useState([]);
   const [fullLogs, setFullLogs] = useState([]);
+  const [logsStats, setLogsStats] = useState({ totalSuccess: 0, totalFailed: 0 });
   const [loading, setLoading] = useState(false);
 
   const fetchData = async () => {
@@ -16,7 +17,11 @@ export default function Dashboard() {
         axios.get('/api/logs')
       ]);
       setSchedules(schedulesRes.data || []);
-      setFullLogs(logsRes.data || []);
+      setFullLogs(logsRes.data.logs || []);
+      setLogsStats({ 
+        totalSuccess: logsRes.data.totalSuccess || 0, 
+        totalFailed: logsRes.data.totalFailed || 0 
+      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -78,9 +83,9 @@ export default function Dashboard() {
     }
   };
 
-  const sentCount = fullLogs.filter(l => l.status === 'success').length;
+  const sentCount = logsStats.totalSuccess;
   const pendingCount = schedules.filter(s => s.status === 'pending').length;
-  const failedCount = fullLogs.filter(l => l.status === 'failed').length;
+  const failedCount = logsStats.totalFailed;
 
   return (
     <div className="fade-in">

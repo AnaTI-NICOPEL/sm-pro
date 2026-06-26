@@ -113,9 +113,20 @@ export default function Logs() {
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map(log => (
+                  {(logs || []).map(log => (
                     <tr key={log.id}>
-                      <td>{format(new Date(log.sent_at), 'dd/MM/yyyy HH:mm:ss')}</td>
+                      <td>
+                        {(() => {
+                          try {
+                            if (!log.sent_at) return '-';
+                            const d = new Date(log.sent_at);
+                            if (isNaN(d.getTime())) return '-';
+                            return format(d, 'dd/MM/yyyy HH:mm:ss');
+                          } catch (e) {
+                            return '-';
+                          }
+                        })()}
+                      </td>
                       <td style={{ fontWeight: '500' }}>{log.telefone}</td>
                       <td>
                         {log.status === 'success' ? (
@@ -136,7 +147,7 @@ export default function Logs() {
                       </td>
                     </tr>
                   ))}
-                  {logs.length === 0 && (
+                  {(logs || []).length === 0 && (
                     <tr>
                       <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-dim)' }}>
                         Nenhum log encontrado.
