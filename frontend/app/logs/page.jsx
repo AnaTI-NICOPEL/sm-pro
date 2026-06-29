@@ -166,6 +166,9 @@ export default function Logs() {
                 <thead>
                   <tr>
                     <th>Data/Hora</th>
+                    <th>Etiqueta</th>
+                    <th>Mensagem</th>
+                    <th>Contato</th>
                     <th>Telefone</th>
                     <th>Status</th>
                     <th>Mensagem do Sistema</th>
@@ -187,6 +190,16 @@ export default function Logs() {
                           }
                         })()}
                       </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Tag size={14} style={{ color: 'var(--text-dim)' }} />
+                          {log.tag || '-'}
+                        </div>
+                      </td>
+                      <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={log.content}>
+                        {log.content || '-'}
+                      </td>
+                      <td style={{ fontWeight: '500' }}>{log.contact_name || '-'}</td>
                       <td style={{ fontWeight: '500' }}>{log.contact_number}</td>
                       <td>
                         {log.status === 'success' ? (
@@ -209,7 +222,7 @@ export default function Logs() {
                   ))}
                   {(logs || []).length === 0 && (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-dim)' }}>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-dim)' }}>
                         Nenhum log encontrado.
                       </td>
                     </tr>
