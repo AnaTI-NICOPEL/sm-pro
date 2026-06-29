@@ -83,7 +83,7 @@ export default function ImportContacts() {
     const map = {
       idle: 'Aguardando',
       running: 'Importando...',
-      paused_delay: 'Pausa de Segurança (120s)',
+      paused_delay: 'Pausa de Segurança (15s)',
       paused_user: 'Pausado pelo Usuário',
       completed: 'Concluído',
       failed: 'Falha na Importação',

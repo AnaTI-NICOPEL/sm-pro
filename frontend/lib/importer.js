@@ -138,7 +138,7 @@ async function executeImportFlow() {
     global.importState.currentPage = 1;
 
     addLog(`📊 Total de contatos na API: ${totalContacts}. Páginas: ${global.importState.totalPages}`);
-    addLog(`⚡ Configurado: Lotes de ${contactsPerBatch} contatos (${pagesPerBatch} páginas) com pausa de 2 minutos.`);
+    addLog(`⚡ Configurado: Lotes de ${contactsPerBatch} contatos (${pagesPerBatch} páginas) com pausa de 15 segundos.`);
 
     const CONCURRENCY = 10;
 
@@ -246,9 +246,9 @@ async function executeImportFlow() {
 
         if (global.importState.currentPage <= global.importState.totalPages) {
             global.importState.status = 'paused_delay';
-            const pauseDuration = 2 * 60 * 1000;
+            const pauseDuration = 15 * 1000;
             global.importState.nextBatchTime = Date.now() + pauseDuration;
-            addLog(`⏳ Lote ${global.importState.currentBatch} concluído. Pausa de 2 minutos antes do próximo lote...`);
+            addLog(`⏳ Lote ${global.importState.currentBatch} concluído. Pausa de 15 segundos antes do próximo lote...`);
 
             const pauseStart = Date.now();
             while (Date.now() - pauseStart < pauseDuration) {

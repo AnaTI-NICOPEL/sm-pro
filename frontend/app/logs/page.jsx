@@ -2,8 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { Tag, CheckCircle2, XCircle, Clock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-
+import { Tag, CheckCircle2, XCircle, Clock, Search, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,12 +61,72 @@ export default function Logs() {
     if (page < totalPages) setPage(page + 1);
   };
 
+  const exportToExcel = (data, filename, columns) => {
+    const formattedData = data.map(item => {
+      const row = {};
+      columns.forEach(col => {
+        let val = item[col.key];
+        if (col.format) val = col.format(val);
+        row[col.header] = val;
+      });
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(formattedData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    XLSX.writeFile(workbook, `${filename}.xlsx`);
+  };
+
+  const handleExportLogs = async (exportFilter = 'all') => {
+    try {
+      const res = await axios.get('/api/logs', {
+        params: {
+          page: 1,
+          limit: 10000,
+          status: exportFilter
+        }
+      });
+      const dataToExport = res.data.logs;
+      if (!dataToExport || dataToExport.length === 0) {
+        alert('Nenhum log encontrado para exportar com este filtro.');
+        return;
+      }
+      const columns = [
+        { header: 'Data/Hora', key: 'sent_at', format: (v) => { try { return v ? format(new Date(v), 'dd/MM/yyyy HH:mm:ss') : '-'; } catch(e){ return '-'; } } },
+        { header: 'Etiqueta', key: 'tag' },
+        { header: 'Mensagem', key: 'content' },
+        { header: 'Contato', key: 'contact_name' },
+        { header: 'Telefone', key: 'contact_number' },
+        { header: 'Status', key: 'status' },
+        { header: 'Erro', key: 'error' },
+        { header: 'ID (SM Click)', key: 'smclick_message_id' }
+      ];
+      const dateStr = format(new Date(), 'dd-MM-yyyy_HH-mm');
+      exportToExcel(dataToExport, `logs_envio_${exportFilter}_${dateStr}`, columns);
+    } catch (err) {
+      console.error('Error exporting logs:', err);
+      alert('Erro ao exportar logs.');
+    }
+  };
+
   return (
     <div className="fade-in">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
         <div>
           <h1>Logs de Envio</h1>
           <p>Histórico detalhado de todas as mensagens disparadas.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" onClick={() => handleExportLogs('success')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
+            <Download size={18} /> Envios
+          </button>
+          <button className="btn btn-secondary" onClick={() => handleExportLogs('failed')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
+            <Download size={18} /> Erros
+          </button>
+          <button className="btn" onClick={() => handleExportLogs('all')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
+            <Download size={18} /> Tudo
+          </button>
         </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
