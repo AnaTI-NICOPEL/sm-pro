@@ -33,7 +33,7 @@ export async function POST(request) {
         const result = await pgPool.query(
             `INSERT INTO messages (tag, content, scheduled_at, media_name, media_base64, status) 
              VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING *`,
-            [tagString, content, new Date(scheduledAt), mediaName || null, mediaBase64 || null]
+            [tagString, content, new Date(scheduledAt + ':00-03:00'), mediaName || null, mediaBase64 || null]
         );
 
         return NextResponse.json(result.rows[0], { status: 201 });
