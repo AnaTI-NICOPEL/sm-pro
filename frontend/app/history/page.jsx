@@ -29,7 +29,7 @@ export default function History() {
   const fetchSchedules = async () => {
     try {
       const res = await axios.get('/api/schedules');
-      setSchedules(res.data.filter(s => s.status === 'completed' || s.status === 'failed'));
+      setSchedules(res.data.filter(s => s.status === 'sent' || s.status === 'failed'));
     } catch (error) {
       console.error('Error fetching schedules:', error);
     } finally {
@@ -84,7 +84,7 @@ export default function History() {
                     <td>{safeFormat(schedule.scheduled_at, 'dd/MM/yyyy HH:mm')}</td>
                     <td>
                       <span className={`status-badge status-${schedule.status}`}>
-                        {schedule.status === 'completed' ? 'Concluído' : 'Falhou'}
+                        {schedule.status === 'sent' ? 'Concluído' : 'Falhou'}
                       </span>
                     </td>
                     <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

@@ -165,7 +165,14 @@ export default function Dashboard() {
                 <td>{safeFormat(schedule.scheduled_at, 'dd/MM/yyyy HH:mm')}</td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span className={`status-badge status-${schedule.status}`}>{schedule.status}</span>
+                    <span className={`status-badge status-${schedule.status}`}>
+                      {schedule.status === 'sent' ? 'Concluído' :
+                       schedule.status === 'pending' ? 'Pendente' :
+                       schedule.status === 'failed' ? 'Falhou' :
+                       schedule.status === 'sending' ? 'Enviando' :
+                       schedule.status === 'paused' ? 'Pausado' :
+                       schedule.status}
+                    </span>
                     {(schedule.status === 'pending' || schedule.status === 'paused') && (
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {schedule.status === 'pending' && (
