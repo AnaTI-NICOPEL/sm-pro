@@ -18,7 +18,7 @@ export async function POST(request) {
         const config = {};
         resSettings.rows.forEach(r => config[r.key] = r.value);
         
-        const baseUrl = config.baseUrl || 'https://api.smclick.com.br';
+        const baseUrl = (config.baseUrl || 'https://api.smclick.com.br').replace(/\/+$/, '');
         const apiKey = config.apiKey || process.env.SMCLICK_API_KEY;
 
         if (!apiKey) {
@@ -26,13 +26,14 @@ export async function POST(request) {
         }
 
         let formattedPhone = telephone.toString().replace(/\D/g, '');
+        // Remove 55 se o usuário tiver preenchido sem o 55 originalmente
         if (formattedPhone.startsWith('55') && formattedPhone.length >= 12) {
             formattedPhone = formattedPhone.substring(2);
         }
 
         // Formata o payload para o SM Click
         const payload = {
-            name: name || '',
+            name: name || 'Contato',
             telephone: formattedPhone,
             tags: [tag],
             country: 'BR'
@@ -41,7 +42,15 @@ export async function POST(request) {
         // Envia para o SM Click
         let smClickSuccess = false;
         try {
-            await axios.post(`${baseUrl}/contacts`, payload, {
+            // Busca a instância ativa
+            const instRes = await axios.get(`${baseUrl}/instances`, { headers: { 'x-api-key': apiKey } });
+            const instances = instRes.data;
+            const active = instances.find(i => i.name && i.name.toUpperCase().includes('NICOPEL')) || instances.find(i => i.status === 'PAIRED' || i.status === 'CONNECTED') || instances[0];
+            const instanceId = active ? active.id : '';
+
+            const endpoint = instanceId ? `${baseUrl}/contacts?instance=${instanceId}` : `${baseUrl}/contacts`;
+
+            await axios.post(endpoint, payload, {
                 headers: {
                     'x-api-key': apiKey,
                     'Content-Type': 'application/json'
