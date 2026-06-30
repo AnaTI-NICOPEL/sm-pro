@@ -114,11 +114,9 @@ export default function ImportContacts() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {['idle', 'completed', 'failed', 'cancelled'].includes(importStatus.status) ? (
             <>
-              {['completed', 'failed', 'cancelled'].includes(importStatus.status) && (
-                <a href="/api/import/report" target="_blank" download="relatorio_importacao.txt" className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', textDecoration: 'none', background: 'var(--surface-light)' }}>
-                  <FileText size={18} /> Baixar Relatório
-                </a>
-              )}
+              <a href="/api/import/report" target="_blank" download="relatorio_importacao.txt" className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', textDecoration: 'none', background: 'var(--surface-light)' }}>
+                <FileText size={18} /> Baixar Relatório
+              </a>
               <button className="btn btn-primary" onClick={handleStartImport} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
                 <Download size={18} /> Iniciar Importação
               </button>

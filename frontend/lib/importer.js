@@ -142,7 +142,7 @@ async function executeImportFlow() {
     addLog(`📊 Total de contatos na API: ${totalContacts}. Páginas: ${global.importState.totalPages}`);
     addLog(`⚡ Configurado: Lotes de ${contactsPerBatch} contatos (${pagesPerBatch} páginas) com pausa de 15 segundos.`);
 
-    const CONCURRENCY = 10;
+    const CONCURRENCY = 3;
 
     while (global.importState.currentPage <= global.importState.totalPages) {
         if (global.importCancelRequested) {
@@ -198,14 +198,23 @@ async function executeImportFlow() {
 
             addLog(`Buscando páginas ${pageGroup.join(', ')}...`);
 
-            const promises = pageGroup.map(page =>
-                axios.get(`${baseUrl}/contacts?instance=${instanceId}&page=${page}`, { headers: getHeaders(apiKey), timeout: 15000 })
-                    .then(res => ({ page, data: res.data }))
-                    .catch(err => {
-                        addLog(`❌ Erro na página ${page}: ${err.message}`);
-                        return { page, data: null, error: err.message };
-                    })
-            );
+            const fetchPageWithRetry = async (page, retries = 3) => {
+                for (let attempt = 1; attempt <= retries; attempt++) {
+                    try {
+                        const res = await axios.get(`${baseUrl}/contacts?instance=${instanceId}&page=${page}`, { headers: getHeaders(apiKey), timeout: 15000 });
+                        return { page, data: res.data };
+                    } catch (err) {
+                        if (attempt === retries) {
+                            addLog(`❌ Erro na página ${page} (falhou após ${retries} tentativas): ${err.message}`);
+                            return { page, data: null, error: err.message };
+                        }
+                        addLog(`⚠️ Tentativa ${attempt} falhou para a página ${page}. Retentando em 2 segundos...`);
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+                }
+            };
+
+            const promises = pageGroup.map(page => fetchPageWithRetry(page));
 
             const results = await Promise.all(promises);
 
