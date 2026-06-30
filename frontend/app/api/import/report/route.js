@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStatus } from '../../../../lib/importer';
+import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,29 +12,34 @@ export async function GET() {
 
     const { added, modified, deleted, errors } = status.report;
     
-    let reportText = `Relatório de Importação\nData: ${new Date().toLocaleString()}\n`;
-    reportText += `===================================\n\n`;
-    
-    reportText += `Páginas com Erro (${errors.length}):\n`;
-    errors.forEach(e => reportText += `- ${e}\n`);
-    reportText += `\n`;
+    // Create a new workbook
+    const wb = XLSX.utils.book_new();
 
-    reportText += `Contatos Deletados (sem tag) (${deleted.length}):\n`;
-    deleted.forEach(d => reportText += `- ${d}\n`);
-    reportText += `\n`;
+    // Adicionados sheet
+    const wsAdded = XLSX.utils.json_to_sheet(added.length > 0 ? added : [{ Mensagem: 'Nenhum contato adicionado' }]);
+    XLSX.utils.book_append_sheet(wb, wsAdded, "Adicionados");
 
-    reportText += `Contatos Adicionados (${added.length}):\n`;
-    added.forEach(a => reportText += `- ${a.telefone} (Tag: ${a.tag})\n`);
-    reportText += `\n`;
+    // Modificados sheet
+    const wsModified = XLSX.utils.json_to_sheet(modified.length > 0 ? modified : [{ Mensagem: 'Nenhum contato modificado' }]);
+    XLSX.utils.book_append_sheet(wb, wsModified, "Modificados");
 
-    reportText += `Contatos Modificados (${modified.length}):\n`;
-    modified.forEach(m => reportText += `- ${m.telefone} (Tag: ${m.tag})\n`);
-    reportText += `\n`;
+    // Deletados sheet
+    const deletedFormatted = deleted.map(d => ({ Telefone: d }));
+    const wsDeleted = XLSX.utils.json_to_sheet(deletedFormatted.length > 0 ? deletedFormatted : [{ Mensagem: 'Nenhum contato deletado' }]);
+    XLSX.utils.book_append_sheet(wb, wsDeleted, "Deletados");
 
-    return new NextResponse(reportText, {
+    // Erros sheet
+    const errorsFormatted = errors.map(e => ({ Erro: e }));
+    const wsErrors = XLSX.utils.json_to_sheet(errorsFormatted.length > 0 ? errorsFormatted : [{ Mensagem: 'Nenhum erro registrado' }]);
+    XLSX.utils.book_append_sheet(wb, wsErrors, "Erros");
+
+    // Convert to buffer
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    return new NextResponse(buf, {
         headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Content-Disposition': 'attachment; filename="relatorio_importacao.txt"'
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="relatorio_importacao.xlsx"'
         }
     });
 }
