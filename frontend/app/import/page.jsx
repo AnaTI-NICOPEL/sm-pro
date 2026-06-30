@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Download, X, Clock, CheckCircle2 } from 'lucide-react';
+import { Download, X, Clock, CheckCircle2, FileText } from 'lucide-react';
 
 export default function ImportContacts() {
   const [importStatus, setImportStatus] = useState({
@@ -113,9 +113,16 @@ export default function ImportContacts() {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {['idle', 'completed', 'failed', 'cancelled'].includes(importStatus.status) ? (
-            <button className="btn btn-primary" onClick={handleStartImport} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
-              <Download size={18} /> Iniciar Importação
-            </button>
+            <>
+              {['completed', 'failed', 'cancelled'].includes(importStatus.status) && (
+                <a href="/api/import/report" target="_blank" download="relatorio_importacao.txt" className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', textDecoration: 'none', background: 'var(--surface-light)' }}>
+                  <FileText size={18} /> Baixar Relatório
+                </a>
+              )}
+              <button className="btn btn-primary" onClick={handleStartImport} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
+                <Download size={18} /> Iniciar Importação
+              </button>
+            </>
           ) : importStatus.status === 'paused_user' ? (
             <>
               <button className="btn btn-primary" onClick={handleResumeImport} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>

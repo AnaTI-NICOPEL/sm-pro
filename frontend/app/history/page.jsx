@@ -83,9 +83,17 @@ export default function History() {
                     </td>
                     <td>{safeFormat(schedule.scheduled_at, 'dd/MM/yyyy HH:mm')}</td>
                     <td>
-                      <span className={`status-badge status-${schedule.status}`}>
-                        {schedule.status === 'sent' ? 'Concluído' : 'Falhou'}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <span className={`status-badge status-${schedule.status}`}>
+                          {schedule.status === 'sent' ? 'Concluído' : 'Falhou'}
+                        </span>
+                        {(Number(schedule.success_count) > 0 || Number(schedule.failed_count) > 0) && (
+                          <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', fontWeight: '500' }}>
+                            <span style={{ color: 'var(--success)' }}>{schedule.success_count || 0} sucessos</span>
+                            <span style={{ color: 'var(--danger)' }}>{schedule.failed_count || 0} falhas</span>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {schedule.content || '(Apenas Anexo)'}

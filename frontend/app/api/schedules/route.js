@@ -5,7 +5,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const result = await pgPool.query('SELECT * FROM messages ORDER BY created_at DESC LIMIT 200');
+        const query = `
+            SELECT 
+                m.*, 
+                COALESCE(s.success_count, 0) AS success_count, 
+                COALESCE(s.failed_count, 0) AS failed_count 
+            FROM messages m
+            LEFT JOIN (
+                SELECT message_id, 
+                       COUNT(*) FILTER (WHERE status = 'success') as success_count,
+                       COUNT(*) FILTER (WHERE status = 'failed') as failed_count
+                FROM logs_envio 
+                GROUP BY message_id
+            ) s ON m.id = s.message_id
+            ORDER BY m.created_at DESC LIMIT 200
+        `;
+        const result = await pgPool.query(query);
         return NextResponse.json(result.rows);
     } catch (error) {
         console.error('Error fetching schedules:', error);

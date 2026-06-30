@@ -165,14 +165,22 @@ export default function Dashboard() {
                 <td>{safeFormat(schedule.scheduled_at, 'dd/MM/yyyy HH:mm')}</td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span className={`status-badge status-${schedule.status}`}>
-                      {schedule.status === 'sent' ? 'Concluído' :
-                       schedule.status === 'pending' ? 'Pendente' :
-                       schedule.status === 'failed' ? 'Falhou' :
-                       schedule.status === 'sending' ? 'Enviando' :
-                       schedule.status === 'paused' ? 'Pausado' :
-                       schedule.status}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span className={`status-badge status-${schedule.status}`}>
+                        {schedule.status === 'sent' ? 'Concluído' :
+                         schedule.status === 'pending' ? 'Pendente' :
+                         schedule.status === 'failed' ? 'Falhou' :
+                         schedule.status === 'sending' ? 'Enviando' :
+                         schedule.status === 'paused' ? 'Pausado' :
+                         schedule.status}
+                      </span>
+                      {(Number(schedule.success_count) > 0 || Number(schedule.failed_count) > 0) && (
+                        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', fontWeight: '500' }}>
+                          <span style={{ color: 'var(--success)' }}>{schedule.success_count || 0} sucessos</span>
+                          <span style={{ color: 'var(--danger)' }}>{schedule.failed_count || 0} falhas</span>
+                        </div>
+                      )}
+                    </div>
                     {(schedule.status === 'pending' || schedule.status === 'paused') && (
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {schedule.status === 'pending' && (

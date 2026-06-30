@@ -15,7 +15,8 @@ if (!global.importState) {
         nextBatchTime: null, // timestamp
         startTime: null,
         elapsedTime: 0,
-        logs: [] // log messages for UI
+        logs: [], // log messages for UI
+        report: { added: [], modified: [], deleted: [], errors: [] }
     };
     global.importCancelRequested = false;
     global.importPauseRequested = false;
@@ -82,7 +83,8 @@ async function startImportBackground() {
         nextBatchTime: null,
         startTime: Date.now(),
         elapsedTime: 0,
-        logs: []
+        logs: [],
+        report: { added: [], modified: [], deleted: [], errors: [] }
     };
 
     addLog('🚀 Iniciando processo de importação em background...');
@@ -201,13 +203,16 @@ async function executeImportFlow() {
                     .then(res => ({ page, data: res.data }))
                     .catch(err => {
                         addLog(`❌ Erro na página ${page}: ${err.message}`);
-                        return { page, data: null };
+                        return { page, data: null, error: err.message };
                     })
             );
 
             const results = await Promise.all(promises);
 
             for (const result of results) {
+                if (result.error) {
+                    global.importState.report.errors.push(`Página ${result.page}: ${result.error}`);
+                }
                 if (!result.data || !result.data.results) continue;
 
                 const contacts = result.data.results;
@@ -215,24 +220,42 @@ async function executeImportFlow() {
                     global.importState.contactsProcessed++;
                     const contactTags = contact.tags || [];
 
-                    if (contactTags.length === 0) continue;
-
                     const nome = contact.name || 'Sem Nome';
                     const telefone = contact.telephone || contact.whatsapp_id;
 
                     if (!telefone) continue;
+
+                    if (contactTags.length === 0) {
+                        try {
+                            const delRes = await pgPool.query(`DELETE FROM contatos WHERE telefone = $1 RETURNING id`, [telefone]);
+                            if (delRes.rowCount > 0) {
+                                global.importState.report.deleted.push(telefone);
+                                addLog(`🗑️ Contato ${telefone} removido (sem tags)`);
+                            }
+                        } catch (dbErr) {
+                            addLog(`❌ Erro ao deletar ${telefone}: ${dbErr.message}`);
+                        }
+                        continue;
+                    }
 
                     for (const t of contactTags) {
                         const tagName = typeof t === 'object' ? t.name : t;
                         if (!tagName) continue;
 
                         try {
-                            await pgPool.query(`
+                            const res = await pgPool.query(`
                                 INSERT INTO contatos (nome, telefone, tag, updated_at)
                                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
                                 ON CONFLICT (telefone, tag)
                                 DO UPDATE SET nome = EXCLUDED.nome, updated_at = CURRENT_TIMESTAMP
+                                RETURNING (xmax = 0) AS inserted
                             `, [nome, telefone, tagName]);
+                            
+                            if (res.rows[0].inserted) {
+                                global.importState.report.added.push({ telefone, tag: tagName });
+                            } else {
+                                global.importState.report.modified.push({ telefone, tag: tagName });
+                            }
                             global.importState.contactsSaved++;
                         } catch (dbErr) {
                             addLog(`❌ Erro ao salvar ${telefone} com tag "${tagName}": ${dbErr.message}`);
