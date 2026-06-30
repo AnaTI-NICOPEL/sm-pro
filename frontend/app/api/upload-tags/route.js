@@ -25,10 +25,15 @@ export async function POST(request) {
             return NextResponse.json({ error: 'API Key do SM Click não configurada' }, { status: 500 });
         }
 
+        let formattedPhone = telephone.toString().replace(/\D/g, '');
+        if (formattedPhone.startsWith('55') && formattedPhone.length >= 12) {
+            formattedPhone = formattedPhone.substring(2);
+        }
+
         // Formata o payload para o SM Click
         const payload = {
             name: name || '',
-            telephone: telephone.toString().replace(/\D/g, ''),
+            telephone: formattedPhone,
             tags: [tag],
             country: 'BR'
         };
@@ -45,8 +50,9 @@ export async function POST(request) {
             });
             smClickSuccess = true;
         } catch (smErr) {
-            console.error(`Erro no SM Click para ${telephone}:`, smErr.message);
-            return NextResponse.json({ error: `Erro no SM Click: ${smErr.message}` }, { status: 502 });
+            const errorDetails = smErr.response?.data ? (typeof smErr.response.data === 'object' ? JSON.stringify(smErr.response.data) : smErr.response.data) : smErr.message;
+            console.error(`Erro no SM Click para ${telephone}:`, errorDetails);
+            return NextResponse.json({ error: errorDetails }, { status: 400 });
         }
 
         // Se sucesso no SM Click, salva/atualiza no banco local
