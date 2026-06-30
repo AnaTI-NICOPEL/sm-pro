@@ -74,8 +74,9 @@ export async function POST(request) {
             // Tenta encontrar uma correspondência exata
             const targetContact = contacts.find(c => {
                 const cPhone = (c.telephone || c.whatsapp_id || '').toString().replace(/\D/g, '');
-                return cPhone.includes(formattedPhone) || formattedPhone.includes(cPhone);
-            }) || contacts[0];
+                // Compara os últimos 8 ou 9 dígitos para ser mais assertivo
+                return cPhone.endsWith(formattedPhone) || formattedPhone.endsWith(cPhone) || cPhone.includes(formattedPhone) || formattedPhone.includes(cPhone);
+            });
 
             if (targetContact) {
                 contactId = targetContact.id;
@@ -95,7 +96,7 @@ export async function POST(request) {
             // URL format exactly as provided by user: /contacts/{contactId}/tag/{tagId}/
             const assignUrl = `${baseUrl}/contacts/${contactId}/tag/${tagId}/`;
             
-            await axios.post(assignUrl, {}, { headers, timeout: 10000 });
+            await axios.post(assignUrl, null, { headers, timeout: 10000 });
             smClickSuccess = true;
         } catch (smErr) {
             const errorDetails = smErr.response?.data ? (typeof smErr.response.data === 'object' ? JSON.stringify(smErr.response.data) : smErr.response.data) : smErr.message;
@@ -117,7 +118,12 @@ export async function POST(request) {
             }
         }
 
-        return NextResponse.json({ success: true, telephone, tag: targetTag.name });
+        return NextResponse.json({ 
+            success: true, 
+            telephone, 
+            tag: targetTag.name,
+            contactName: targetContact.name || name
+        });
     } catch (error) {
         console.error('Erro geral no upload de tag:', error);
         return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 });

@@ -23,12 +23,20 @@ export default function UploadTagsPage() {
             const ws = wb.Sheets[wsname];
             const data = XLSX.utils.sheet_to_json(ws);
             
-            // Expected columns: Nome, Telefone, Etiqueta
-            const parsedData = data.map(row => ({
-                nome: row.Nome || row.nome || row.Name || row.name || '',
-                telefone: row.Telefone || row.telefone || row.Phone || row.phone || row.numero || '',
-                etiqueta: row.Etiqueta || row.etiqueta || row.Tag || row.tag || ''
-            })).filter(row => row.telefone && row.etiqueta);
+            const parsedData = data.map(row => {
+                const keys = Object.keys(row);
+                const findKey = (searchStrs) => keys.find(k => searchStrs.some(s => k.toLowerCase().includes(s)));
+                
+                const nomeKey = findKey(['nome', 'name']);
+                const telefoneKey = findKey(['tele', 'phone', 'numero', 'celular']);
+                const etiquetaKey = findKey(['etiq', 'tag']);
+                
+                return {
+                    nome: nomeKey ? row[nomeKey] : '',
+                    telefone: telefoneKey ? row[telefoneKey] : '',
+                    etiqueta: etiquetaKey ? row[etiquetaKey] : ''
+                };
+            }).filter(row => row.telefone && row.etiqueta);
             
             setFileData(parsedData);
             setResults({ success: 0, error: 0, logs: [] });
@@ -55,13 +63,14 @@ export default function UploadTagsPage() {
         for (let i = 0; i < fileData.length; i++) {
             const contact = fileData[i];
             try {
-                await axios.post('/api/upload-tags', {
+                const res = await axios.post('/api/upload-tags', {
                     name: contact.nome,
                     telephone: contact.telefone,
                     tag: contact.etiqueta
                 });
                 successCount++;
-                addLog(`✅ Etiqueta "${contact.etiqueta}" adicionada para ${contact.telefone}`, 'success');
+                const contactName = res.data.contactName || contact.nome || 'Sem Nome';
+                addLog(`✅ Etiqueta "${res.data.tag || contact.etiqueta}" adicionada para ${contactName} (${contact.telefone})`, 'success');
             } catch (err) {
                 errorCount++;
                 const errMsg = err.response?.data?.error || err.message;
