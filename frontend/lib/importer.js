@@ -243,15 +243,16 @@ async function executeImportFlow() {
                         if (!tagName) continue;
 
                         try {
-                            const res = await pgPool.query(`
+                            const check = await pgPool.query(`SELECT id FROM contatos WHERE telefone = $1 AND tag = $2`, [telefone, tagName]);
+                            
+                            await pgPool.query(`
                                 INSERT INTO contatos (nome, telefone, tag, updated_at)
                                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
                                 ON CONFLICT (telefone, tag)
                                 DO UPDATE SET nome = EXCLUDED.nome, updated_at = CURRENT_TIMESTAMP
-                                RETURNING (xmax = 0) AS inserted
                             `, [nome, telefone, tagName]);
                             
-                            if (res.rows[0].inserted) {
+                            if (check.rowCount === 0) {
                                 global.importState.report.added.push({ telefone, tag: tagName });
                             } else {
                                 global.importState.report.modified.push({ telefone, tag: tagName });
