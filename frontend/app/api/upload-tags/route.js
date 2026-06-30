@@ -40,6 +40,17 @@ export async function POST(request) {
             'Content-Type': 'application/json'
         };
 
+        // Busca a instância ativa
+        let instanceId = '';
+        try {
+            const instRes = await axios.get(`${baseUrl}/instances`, { headers, timeout: 10000 });
+            const instances = Array.isArray(instRes.data) ? instRes.data : (instRes.data.results || []);
+            const active = instances.find(i => i.name && i.name.toUpperCase().includes('NICOPEL')) || instances.find(i => i.status === 'PAIRED' || i.status === 'CONNECTED') || instances[0];
+            if (active) instanceId = active.id;
+        } catch (e) {
+            console.log('Não foi possível obter a instância, continuando sem ela...');
+        }
+
         // 1. Get Tag ID
         let tagsList = [];
         const now = Date.now();
@@ -47,8 +58,8 @@ export async function POST(request) {
             tagsList = globalTagsCache;
         } else {
             try {
-                const tagRes = await axios.get(`${baseUrl}/contacts/tag`, { headers, timeout: 10000 });
-                // tagRes.data could be an array directly or inside { results: [...] }
+                const tagUrl = instanceId ? `${baseUrl}/contacts/tag?instance=${instanceId}` : `${baseUrl}/contacts/tag`;
+                const tagRes = await axios.get(tagUrl, { headers, timeout: 10000 });
                 tagsList = Array.isArray(tagRes.data) ? tagRes.data : (tagRes.data.results || []);
                 globalTagsCache = tagsList;
                 globalTagsCacheTime = now;
@@ -58,7 +69,7 @@ export async function POST(request) {
             }
         }
 
-        const targetTag = tagsList.find(t => t.name === tag || t.id === tag);
+        const targetTag = tagsList.find(t => t.name.toLowerCase() === tag.toLowerCase() || t.id === tag);
         if (!targetTag) {
             return NextResponse.json({ error: `Etiqueta "${tag}" não foi encontrada no SM Click.` }, { status: 404 });
         }
@@ -66,9 +77,11 @@ export async function POST(request) {
 
         // 2. Get Contact ID
         let contactId = null;
+        let targetContact = null;
         try {
             // Tentamos buscar pelo telefone formatado
-            const contactRes = await axios.get(`${baseUrl}/contacts?search=${formattedPhone}`, { headers, timeout: 10000 });
+            const searchUrl = instanceId ? `${baseUrl}/contacts?search=${formattedPhone}&instance=${instanceId}` : `${baseUrl}/contacts?search=${formattedPhone}`;
+            const contactRes = await axios.get(searchUrl, { headers, timeout: 10000 });
             const contacts = Array.isArray(contactRes.data) ? contactRes.data : (contactRes.data.results || []);
             
             // Tenta encontrar uma correspondência exata
@@ -93,10 +106,12 @@ export async function POST(request) {
         // 3. Link Tag to Contact
         let smClickSuccess = false;
         try {
-            // URL format exactly as provided by user: /contacts/{contactId}/tag/{tagId}/
-            const assignUrl = `${baseUrl}/contacts/${contactId}/tag/${tagId}/`;
+            // URL format exactly as provided by user, optionally with instance
+            const assignUrl = instanceId 
+                ? `${baseUrl}/contacts/${contactId}/tag/${tagId}/?instance=${instanceId}`
+                : `${baseUrl}/contacts/${contactId}/tag/${tagId}/`;
             
-            await axios.post(assignUrl, null, { headers, timeout: 10000 });
+            await axios.post(assignUrl, {}, { headers, timeout: 10000 });
             smClickSuccess = true;
         } catch (smErr) {
             const errorDetails = smErr.response?.data ? (typeof smErr.response.data === 'object' ? JSON.stringify(smErr.response.data) : smErr.response.data) : smErr.message;
