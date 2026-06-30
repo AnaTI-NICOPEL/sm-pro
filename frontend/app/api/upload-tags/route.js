@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-import { pgPool } from '../../../../lib/db';
+import { pgPool } from '../../../lib/db';
 
 export const dynamic = 'force-dynamic';
 
