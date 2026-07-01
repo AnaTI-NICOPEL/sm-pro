@@ -28,15 +28,6 @@ export async function GET(request) {
         // Pode ser um array direto ou um objeto com .results
         let chats = Array.isArray(chatsRes.data) ? chatsRes.data : (chatsRes.data.results || []);
 
-        // Filtrar pela instância específica conforme solicitado
-        const targetInstance = 'ef046c24-2508-4565-b36d-a88f0d0a3749';
-        chats = chats.filter(chat => 
-            chat.instance_id === targetInstance || 
-            chat.instanceId === targetInstance ||
-            chat.instance === targetInstance ||
-            (chat.instance && chat.instance.id === targetInstance)
-        );
-
         return NextResponse.json({ success: true, chats });
     } catch (error) {
         console.error('Erro ao buscar chats ativos:', error.response?.data || error.message);
