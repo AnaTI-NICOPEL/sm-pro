@@ -23,7 +23,7 @@ export async function GET(request) {
             'Content-Type': 'application/json'
         };
 
-        const chatsRes = await axios.get(chatsUrl, { headers, timeout: 25000 }); // increased timeout
+        const chatsRes = await axios.get(chatsUrl, { headers, timeout: 60000 }); // increased to 60s
         
         // Pode ser um array direto ou um objeto com .results
         let chats = Array.isArray(chatsRes.data) ? chatsRes.data : (chatsRes.data.results || []);
@@ -32,10 +32,13 @@ export async function GET(request) {
     } catch (error) {
         console.error('Erro ao buscar chats ativos:', error.response?.data || error.message);
         
-        const status = error.response?.status || 500;
+        const isTimeout = error.code === 'ECONNABORTED';
+        const status = isTimeout ? 504 : (error.response?.status || 500);
+        const details = isTimeout ? 'A requisição para o SM Click demorou mais que 60 segundos (Timeout).' : (error.response?.data || error.message);
+
         return NextResponse.json({ 
-            error: 'Erro ao buscar chats no SM Click', 
-            details: error.response?.data || error.message 
+            error: isTimeout ? 'Tempo esgotado' : 'Erro ao buscar chats no SM Click', 
+            details: details
         }, { status });
     }
 }
