@@ -14,25 +14,28 @@ export async function GET(request) {
         const config = {};
         resSettings.rows.forEach(r => config[r.key] = r.value);
         
-        const baseUrl = (config.baseUrl || 'https://api.smclick.com.br').replace(/\/+$/, '');
-        // O usuario passou uma chave especifica no curl, usamos do banco preferencialmente,
-        // mas faremos fallback para a chave caso precise
-        const apiKey = config.apiKey || process.env.SMCLICK_API_KEY || '7597dbb1-9a56-4cd8-b111-a35bfc8def55';
-
-        if (!apiKey) {
-            return NextResponse.json({ error: 'API Key do SM Click não configurada' }, { status: 500 });
-        }
+        // Forçando o uso exato da chave e rota fornecida pelo usuario
+        const apiKey = '59732a5d-d614-4b15-84fe-28f24e06936e';
+        const chatsUrl = 'https://api.smclick.com.br/attendances/chats';
 
         const headers = {
             'x-api-key': apiKey,
             'Content-Type': 'application/json'
         };
 
-        const chatsUrl = `${baseUrl}/attendances/chats?instance=${instance}`;
-        const chatsRes = await axios.get(chatsUrl, { headers, timeout: 15000 });
+        const chatsRes = await axios.get(chatsUrl, { headers, timeout: 25000 }); // increased timeout
         
         // Pode ser um array direto ou um objeto com .results
-        const chats = Array.isArray(chatsRes.data) ? chatsRes.data : (chatsRes.data.results || []);
+        let chats = Array.isArray(chatsRes.data) ? chatsRes.data : (chatsRes.data.results || []);
+
+        // Filtrar pela instância específica conforme solicitado
+        const targetInstance = 'ef046c24-2508-4565-b36d-a88f0d0a3749';
+        chats = chats.filter(chat => 
+            chat.instance_id === targetInstance || 
+            chat.instanceId === targetInstance ||
+            chat.instance === targetInstance ||
+            (chat.instance && chat.instance.id === targetInstance)
+        );
 
         return NextResponse.json({ success: true, chats });
     } catch (error) {
