@@ -14,16 +14,17 @@ export async function GET(request) {
         const config = {};
         resSettings.rows.forEach(r => config[r.key] = r.value);
         
-        // Forçando o uso exato da chave e rota fornecida pelo usuario
+        // Forçando o uso exato da chave e parâmetros na URL
         const apiKey = '59732a5d-d614-4b15-84fe-28f24e06936e';
-        const chatsUrl = 'https://api.smclick.com.br/attendances/chats';
+        const targetInstance = 'ef046c24-2508-4565-b36d-a88f0d0a3749';
+        const chatsUrl = `https://api.smclick.com.br/attendances/chats?instance=${targetInstance}&status=active`;
 
         const headers = {
             'x-api-key': apiKey,
             'Content-Type': 'application/json'
         };
 
-        const chatsRes = await axios.get(chatsUrl, { headers, timeout: 60000 }); // increased to 60s
+        const chatsRes = await axios.get(chatsUrl, { headers, timeout: 300000 }); // increased to 5 minutes
         
         // Pode ser um array direto ou um objeto com .results
         let chats = Array.isArray(chatsRes.data) ? chatsRes.data : (chatsRes.data.results || []);
@@ -34,7 +35,7 @@ export async function GET(request) {
         
         const isTimeout = error.code === 'ECONNABORTED';
         const status = isTimeout ? 504 : (error.response?.status || 500);
-        const details = isTimeout ? 'A requisição para o SM Click demorou mais que 60 segundos (Timeout).' : (error.response?.data || error.message);
+        const details = isTimeout ? 'A requisição para o SM Click demorou mais que 5 minutos (Timeout).' : (error.response?.data || error.message);
 
         return NextResponse.json({ 
             error: isTimeout ? 'Tempo esgotado' : 'Erro ao buscar chats no SM Click', 
