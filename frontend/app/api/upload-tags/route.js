@@ -29,10 +29,12 @@ export async function POST(request) {
             return NextResponse.json({ error: 'API Key do SM Click não configurada' }, { status: 500 });
         }
 
-        let formattedPhone = telephone.toString().replace(/\D/g, '');
-        // Remove 55 se o usuário tiver preenchido sem o 55 originalmente
-        if (formattedPhone.startsWith('55') && formattedPhone.length >= 12) {
-            formattedPhone = formattedPhone.substring(2);
+        let originalPhone = telephone.toString().replace(/\D/g, '');
+        let phonesToTry = [ originalPhone ];
+        if (originalPhone.startsWith('55') && originalPhone.length >= 12) {
+            phonesToTry.push(originalPhone.substring(2));
+        } else {
+            phonesToTry.push('55' + originalPhone);
         }
 
         const headers = {
@@ -78,30 +80,39 @@ export async function POST(request) {
         // 2. Get Contact ID
         let contactId = null;
         let targetContact = null;
-        try {
-            // Tentamos buscar pelo telefone formatado
-            const searchUrl = instanceId ? `${baseUrl}/contacts?search=${formattedPhone}&instance=${instanceId}` : `${baseUrl}/contacts?search=${formattedPhone}`;
-            const contactRes = await axios.get(searchUrl, { headers, timeout: 10000 });
-            const contacts = Array.isArray(contactRes.data) ? contactRes.data : (contactRes.data.results || []);
-            
-            // Tenta encontrar uma correspondência exata
-            const targetContact = contacts.find(c => {
-                const cPhone = (c.telephone || c.whatsapp_id || '').toString().replace(/\D/g, '');
-                // Compara os últimos 8 ou 9 dígitos para ser mais assertivo
-                return cPhone.endsWith(formattedPhone) || formattedPhone.endsWith(cPhone) || cPhone.includes(formattedPhone) || formattedPhone.includes(cPhone);
-            });
+        let matchedPhone = originalPhone;
+        let searchError = null;
 
-            if (targetContact) {
-                contactId = targetContact.id;
+        for (let phone of phonesToTry) {
+            if (targetContact) break;
+            try {
+                const searchUrl = instanceId ? `${baseUrl}/contacts?search=${phone}&instance=${instanceId}` : `${baseUrl}/contacts?search=${phone}`;
+                const contactRes = await axios.get(searchUrl, { headers, timeout: 10000 });
+                const contacts = Array.isArray(contactRes.data) ? contactRes.data : (contactRes.data.results || []);
+                
+                targetContact = contacts.find(c => {
+                    const cPhone = (c.telephone || c.whatsapp_id || '').toString().replace(/\D/g, '');
+                    return cPhone.endsWith(phone) || phone.endsWith(cPhone) || cPhone.includes(phone) || phone.includes(cPhone);
+                });
+
+                if (targetContact) {
+                    contactId = targetContact.id;
+                    matchedPhone = phone;
+                }
+            } catch (err) {
+                searchError = err;
             }
-        } catch (err) {
-            const errMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-            return NextResponse.json({ error: `Erro ao buscar o contato ${formattedPhone} no SM Click: ${errMsg}` }, { status: 502 });
         }
 
         if (!contactId) {
-            return NextResponse.json({ error: `O contato ${formattedPhone} não foi encontrado no SM Click.` }, { status: 404 });
+            if (searchError) {
+                const errMsg = searchError.response?.data ? JSON.stringify(searchError.response.data) : searchError.message;
+                return NextResponse.json({ error: `Erro ao buscar o contato ${originalPhone} no SM Click: ${errMsg}` }, { status: 502 });
+            }
+            return NextResponse.json({ error: `O contato ${originalPhone} não foi encontrado no SM Click (tentamos com e sem 55).` }, { status: 404 });
         }
+
+        let formattedPhone = matchedPhone;
 
         // 3. Link Tag to Contact
         let smClickSuccess = false;
