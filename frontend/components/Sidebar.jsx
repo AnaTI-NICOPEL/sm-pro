@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, Activity, Download, Tag, 
-  Calendar, History, ClipboardList, Settings, Send, Users, Upload
+  Calendar, History, ClipboardList, Settings, Send, Users, Upload, MessageCircle
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -13,6 +13,7 @@ export default function Sidebar() {
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/sellers', label: 'Vendedores', icon: Users },
     { href: '/leads', label: 'Monitoramento', icon: Activity },
+    { href: '/active-chats', label: 'Chats Ativos', icon: MessageCircle },
     { href: '/import', label: 'Importar Contatos', icon: Download },
     { href: '/upload-tags', label: 'Upload Etiquetas', icon: Upload },
     { href: '/tags', label: 'Etiquetas', icon: Tag },
