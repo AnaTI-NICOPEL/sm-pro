@@ -37,9 +37,11 @@ export async function GET(request) {
         return NextResponse.json({ success: true, chats });
     } catch (error) {
         console.error('Erro ao buscar chats ativos:', error.response?.data || error.message);
+        
+        const status = error.response?.status || 500;
         return NextResponse.json({ 
             error: 'Erro ao buscar chats no SM Click', 
             details: error.response?.data || error.message 
-        }, { status: 500 });
+        }, { status });
     }
 }

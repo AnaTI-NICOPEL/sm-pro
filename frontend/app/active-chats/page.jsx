@@ -40,7 +40,8 @@ export default function ActiveChats() {
             setFilteredChats(activeChats);
         } catch (err) {
             console.error(err);
-            setError('Erro ao carregar os chats ativos.');
+            const backendError = err.response?.data?.details?.detail || err.response?.data?.error || 'Erro ao carregar os chats ativos.';
+            setError(backendError);
         } finally {
             setLoading(false);
         }
